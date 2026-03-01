@@ -2,9 +2,11 @@
 AI routes — brief generation, ROI prediction, report generation
 """
 from fastapi import APIRouter, HTTPException
-from models.schemas import BriefRequest, BriefResponse
+from fastapi.responses import Response
+from models.schemas import BriefRequest, BriefResponse, CombinedDownloadRequest
 from services import supabase_service as db
 from services import ai_service as ai
+from services.pdf_service import report_to_pdf, reports_to_combined_pdf
 from datetime import datetime
 
 router = APIRouter(prefix="/api/ai", tags=["AI"])
@@ -134,6 +136,52 @@ async def get_report(report_id: str):
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     return report
+
+
+@router.get("/reports/{report_id}/download")
+async def download_report(report_id: str):
+    """Download a single report as PDF"""
+    report = await db.get_report(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    pdf_bytes = report_to_pdf(report)
+    name = (report.get("name") or "report").replace(" ", "_")[:50]
+    safe_name = "".join(c for c in name if c.isalnum() or c in "._-")[:60] or "report"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.pdf"'},
+    )
+
+
+@router.post("/reports/download-combined")
+async def download_combined_reports(req: CombinedDownloadRequest):
+    """Download multiple reports combined into one PDF"""
+    reports = []
+    for rid in req.report_ids:
+        r = await db.get_report(rid)
+        if r:
+            reports.append(r)
+    if not reports:
+        raise HTTPException(status_code=404, detail="No valid reports found")
+    pdf_bytes = reports_to_combined_pdf(reports)
+    first_name = (reports[0].get("name") or "reports").replace(" ", "_")[:40]
+    safe_name = "".join(c for c in first_name if c.isalnum() or c in "._-")[:40] or "reports"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}_combined.pdf"'},
+    )
+
+
+@router.delete("/reports/{report_id}")
+async def delete_report(report_id: str):
+    """Delete a report by ID"""
+    report = await db.get_report(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    await db.delete_report(report_id)
+    return {"deleted": True, "id": report_id}
 
 
 @router.get("/activity")

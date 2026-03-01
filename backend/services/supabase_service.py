@@ -188,6 +188,15 @@ async def get_report(report_id: str) -> dict | None:
         return None
 
 
+async def delete_report(report_id: str) -> bool:
+    sb = get_supabase()
+    try:
+        sb.table("reports").delete().eq("id", report_id).execute()
+        return True
+    except Exception:
+        return False
+
+
 async def get_all_risk_flags() -> list[dict]:
     """Get all risk flags across all influencers with influencer details"""
     sb = get_supabase()

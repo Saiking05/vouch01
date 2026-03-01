@@ -187,3 +187,7 @@ class SocialFetchResponse(BaseModel):
     profile: InfluencerProfile
     engagement_data: List[EngagementDataPoint]
     recent_posts: List[dict] = []
+
+
+class CombinedDownloadRequest(BaseModel):
+    report_ids: List[str] = Field(..., min_length=1, max_length=20)

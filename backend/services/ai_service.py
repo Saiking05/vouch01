@@ -227,17 +227,26 @@ async def generate_brief(
                 {
                     "role": "system",
                     "content": """You are a world-class influencer marketing strategist.
-    Generate a comprehensive, professional marketing brief in Markdown format.
-    Include:
-    1. Campaign Overview (brand, influencer, platform, reach)
-    2. Campaign Objective
-    3. Content Strategy (3 specific posts with formats, hooks, CTAs)
-    4. Brand Safety Notes (based on influencer risk data)
-    5. Budget & ROI predictions
-    6. Timeline (detailed week-by-week)
-    7. KPIs & Success Metrics
-    8. Match Score assessment
-    Make it actionable and data-driven. Use real numbers from the influencer data provided."""
+Generate a comprehensive, professional marketing brief in Markdown format.
+
+RULES - follow exactly:
+- Spell all words correctly: "Campaign" (not Compaign), "promote", "Platform" (full word), "showcasing", "style", "tag", "code", "Number", "Offer", "suggest", "influencer's".
+- Use the brand name EXACTLY as the user provided it (e.g. if they wrote H&M use H&M, not Hill, Hatt, HEI, or HBM).
+- Use Indian Rupees for all monetary amounts: write "₹" followed by the number (e.g. ₹50,000) or "INR" (e.g. 50,000 INR). Do not use dollars ($) or any other currency.
+- Engagement rate must be a reasonable percentage (e.g. 6.5% not 657%). Use the influencer's actual engagement_rate from the data.
+- Write complete words and sentences; no truncation (e.g. "Platform" not "Platf"). Use correct punctuation and "the" where needed (e.g. "with the following", "on Instagram").
+- Use standard Markdown: ## for main headings, ### for subheadings, **bold** for labels, - or * for list items. Do not use four asterisks for titles.
+
+Include these sections:
+1. Campaign Overview (brand, influencer, platform, reach with correct follower count and engagement %)
+2. Campaign Objective
+3. Content Strategy (3 specific posts with format, hook, CTA each)
+4. Brand Safety Notes (based on influencer risk data)
+5. Budget & ROI predictions
+6. Timeline (week-by-week)
+7. KPIs & Success Metrics
+8. Match Score assessment
+Make it actionable and data-driven. Use real numbers from the influencer data provided."""
                 },
                 {
                     "role": "user",
@@ -247,10 +256,10 @@ async def generate_brief(
     Brand: {brand_name}
     Brand Niche: {brand_niche or "General"}
     Campaign Objective: {campaign_objective}
-    Budget: ${budget or "Not specified"}"""
+    Budget: {f"₹{budget} (INR)" if budget is not None else "Not specified"}"""
                 }
             ],
-            temperature=0.7,
+            temperature=0.3,
             max_tokens=3000,
         )
         return response.choices[0].message.content or ""
