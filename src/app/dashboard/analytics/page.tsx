@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
     Loader, ChevronDown,
     DollarSign, Eye, Zap, ArrowUpRight,
@@ -142,11 +142,7 @@ export default function AnalyticsPage() {
     const [loading, setLoading] = useState(true);
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         try {
             const data = await getAllInfluencers(50);
             setInfluencers(data.results);
@@ -155,11 +151,15 @@ export default function AnalyticsPage() {
                 const best = data.results.reduce((a, b) => a.match_score > b.match_score ? a : b);
                 setSelectedInfluencer(best);
             }
-        } catch {
-            // Backend not running
+        } catch (error) {
+            console.error("Failed to load influencer data:", error);
         }
         setLoading(false);
-    };
+    }, []);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const inf = selectedInfluencer;
 
@@ -369,7 +369,11 @@ export default function AnalyticsPage() {
                                         <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 600 }} />
                                         <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => formatNumber(v)} />
                                         <Tooltip
-                                            formatter={(value: number) => [formatNumber(value), "Followers"]}
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            formatter={(value: any) => [
+                                                formatNumber(Number(value || 0)),
+                                                "Followers"
+                                            ]}
                                             contentStyle={{ borderRadius: 12, border: "2px solid #1a1a2e", fontWeight: 600, fontSize: 12 }}
                                         />
                                         <Area
@@ -456,8 +460,9 @@ export default function AnalyticsPage() {
                                         <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => formatNumber(v)} />
                                         <Tooltip
                                             contentStyle={{ borderRadius: 12, border: "2px solid #1a1a2e", fontWeight: 600, fontSize: 12 }}
-                                            formatter={(value: number, name: string) => [
-                                                formatNumber(value),
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            formatter={(value: any, name: string) => [
+                                                formatNumber(Number(value || 0)),
                                                 name === "predictedLikes" ? "Predicted Likes" :
                                                     name === "predictedComments" ? "Predicted Comments" : "Predicted Reach"
                                             ]}
@@ -500,7 +505,8 @@ export default function AnalyticsPage() {
                                             innerRadius={40}
                                             strokeWidth={2.5}
                                             stroke="#1a1a2e"
-                                            label={({ age, percent }) => `${age}: ${percent}%`}
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            label={(props: any) => `${props.name}: ${props.value}%`}
                                         >
                                             {audienceData.map((_, i) => (
                                                 <Cell key={i} fill={COLORS[i % COLORS.length]} />
@@ -508,7 +514,11 @@ export default function AnalyticsPage() {
                                         </Pie>
                                         <Tooltip
                                             contentStyle={{ borderRadius: 12, border: "2px solid #1a1a2e", fontWeight: 600, fontSize: 12 }}
-                                            formatter={(value: number) => [`${value}%`, "Share"]}
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            formatter={(value: any) => [
+                                                `${value || 0}%`,
+                                                "Share"
+                                            ]}
                                         />
                                     </PieChart>
                                 </ResponsiveContainer>
