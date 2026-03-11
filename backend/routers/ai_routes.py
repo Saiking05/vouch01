@@ -6,6 +6,7 @@ from fastapi.responses import Response
 from models.schemas import BriefRequest, BriefResponse, CombinedDownloadRequest
 from services import supabase_service as db
 from services import ai_service as ai
+from services import social_service as social
 from services.pdf_service import report_to_pdf, reports_to_combined_pdf
 from datetime import datetime
 
@@ -27,6 +28,23 @@ async def generate_brief(req: BriefRequest):
         budget=req.budget,
     )
     
+    # Calculate a REAL match score with actual brand context
+    brand_info = {
+        "brand_name": req.brand_name,
+        "brand_niche": req.brand_niche or "General",
+        "campaign_objective": req.campaign_objective,
+        "budget": req.budget,
+    }
+    try:
+        match_result = await ai.calculate_match_score(profile, brand_info)
+        match_score = match_result.get("match_score", 0)
+        match_recommendation = match_result.get("recommendation", "consider")
+        match_reasoning = match_result.get("reasoning", "")
+    except Exception:
+        match_score = 0
+        match_recommendation = "consider"
+        match_reasoning = "Could not calculate match score"
+    
     # Save the report to database
     # Note: user_id must be a valid UUID. Using a dummy one for system reports.
     SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -36,7 +54,9 @@ async def generate_brief(req: BriefRequest):
         "brief": brief_content,
         "campaign_objective": req.campaign_objective,
         "brand_name": req.brand_name,
-        "match_score": profile.get("match_score", 0),
+        "match_score": match_score,
+        "match_recommendation": match_recommendation,
+        "match_reasoning": match_reasoning,
     }
 
     report = await db.save_report({
@@ -55,7 +75,9 @@ async def generate_brief(req: BriefRequest):
     return {
         "brief": brief_content,
         "influencer_name": profile.get("name", ""),
-        "match_score": profile.get("match_score", 0),
+        "match_score": match_score,
+        "match_recommendation": match_recommendation,
+        "match_reasoning": match_reasoning,
         "generated_at": datetime.utcnow().isoformat(),
         "report_id": report.get("id"),
     }
@@ -70,6 +92,22 @@ async def predict_roi(influencer_id: str, budget: float = 0):
     
     result = await ai.predict_roi(profile, budget)
     return result
+
+
+@router.post("/predict-analytics/{influencer_id}")
+async def get_live_analytics(influencer_id: str):
+    """Predict analytics data using live AI for the dashboard"""
+    try:
+        profile = await db.get_influencer(influencer_id)
+        if not profile:
+            raise HTTPException(status_code=404, detail="Influencer not found")
+        
+        result = await ai.predict_live_analytics(profile)
+        return result
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/analyze-comments")
@@ -238,8 +276,13 @@ async def run_content_audit(influencer_id: str):
     if not profile:
         raise HTTPException(status_code=404, detail="Influencer not found")
     
-    # Get recent posts for captions
-    recent_posts = profile.get("recent_posts", [])
+    # Get recent posts for captions live since DB doesn't store them
+    try:
+        live_data = await social.fetch_social_profile(profile.get("handle", ""), profile.get("platform", "instagram"))
+        recent_posts = live_data.get("recent_posts", [])
+    except Exception as e:
+        recent_posts = []
+        
     captions = []
     for post in recent_posts:
         if isinstance(post, dict):
@@ -248,5 +291,14 @@ async def run_content_audit(influencer_id: str):
         elif isinstance(post, str):
             captions.append(post)
             
-    audit_results = await ai.audit_content_safety(captions)
-    return audit_results
+    try:
+        audit_results = await ai.audit_content_safety(captions)
+        return audit_results
+    except Exception as e:
+        return {
+            "risk_score": 0,
+            "risk_level": "unknown",
+            "detected_flags": [],
+            "summary": f"Audit failed: {str(e)}",
+            "safe_for_brands": False
+        }

@@ -146,15 +146,6 @@ async def fetch_instagram_profile(handle: str) -> dict:
             "recent_posts": recent_posts,
         }
 
-        # FINAL POLISH: If engagement is 0 but they have followers, use industry benchmarks
-        # Brands hate seeing 0% for real accounts just because posts are private.
-        if res["followers"] > 0 and res["engagement_rate"] == 0:
-            # Benchmark for IG is ~1.5% - 3%
-            fallback_er = 1.85 if res["followers"] < 100000 else 1.25
-            res["engagement_rate"] = fallback_er
-            res["avg_likes"] = int(res["followers"] * (fallback_er / 100))
-            res["avg_comments"] = int(res["avg_likes"] * 0.02) # Typical 2% comment/like ratio
-
         return res
 
 
@@ -396,19 +387,6 @@ async def fetch_youtube_channel(handle: str) -> dict:
             "recent_posts": recent_posts[:5],
         }
 
-        # FINAL POLISH: If we still have 0 likes (API didn't return them), use estimates
-        if res["followers"] > 0 and res["avg_likes"] == 0:
-            if res["engagement_rate"] > 0:
-                # Estimate from engagement rate
-                res["avg_likes"] = int(res["followers"] * (min(res["engagement_rate"], 10) / 100))
-                res["avg_comments"] = int(res["avg_likes"] * 0.05)
-            else:
-                # Benchmark for YT is ~2.5% - 4%
-                fallback_er = 3.50 if res["followers"] < 100000 else 2.15
-                res["engagement_rate"] = fallback_er
-                res["avg_likes"] = int(res["followers"] * (fallback_er / 100))
-                res["avg_comments"] = int(res["avg_likes"] * 0.05) 
-
         return res
 
 
@@ -503,33 +481,67 @@ def _detect_niche_from_bio(bio: str, name: str = "", captions: list[str] = None)
 
 
 def generate_engagement_timeline(profile: dict, days: int = 30) -> list[dict]:
-    """Generate engagement timeline based on real profile data.
-    NOTE: Historical daily data is not available from free APIs.
-    This uses the real follower/engagement numbers as the baseline."""
-    timeline = []
+    """Generate engagement timeline from REAL post data.
+    Uses actual post likes, comments, and timestamps from the API.
+    Spike detection checks if a post's engagement is 3x+ the average."""
+    recent_posts = profile.get("recent_posts", [])
     base_followers = profile.get("followers", 0)
-    base_likes = profile.get("avg_likes", 0) or max(1, int(base_followers * 0.01))
-    base_comments = profile.get("avg_comments", 0) or max(1, int(base_followers * 0.001))
-    
-    for i in range(days):
-        date = (datetime.now() - timedelta(days=days - i)).strftime("%Y-%m-%d")
-        
-        # Add natural variance
-        variance = random.uniform(0.85, 1.15)
-        spike = random.random() < 0.05  # 5% chance of spike
-        
-        followers = int(base_followers * (1 + (i / days) * 0.02) * random.uniform(0.99, 1.01))
-        likes = int(base_likes * variance * (3 if spike else 1))
-        comments = int(base_comments * variance * (2.5 if spike else 1))
-        shares = int(likes * 0.05 * variance)
-        
+
+    # If we have real post data, use it
+    if recent_posts:
+        # Calculate average engagement for spike detection
+        all_likes = [p.get("likes", 0) for p in recent_posts if isinstance(p, dict)]
+        avg_likes = sum(all_likes) / len(all_likes) if all_likes else 0
+        spike_threshold = avg_likes * 3 if avg_likes > 0 else float("inf")
+
+        timeline = []
+        for post in recent_posts:
+            if not isinstance(post, dict):
+                continue
+
+            # Parse real timestamp
+            ts = post.get("posted_at")
+            if ts:
+                try:
+                    date_str = datetime.fromtimestamp(int(ts)).strftime("%Y-%m-%d")
+                except (ValueError, TypeError, OSError):
+                    date_str = datetime.now().strftime("%Y-%m-%d")
+            else:
+                date_str = datetime.now().strftime("%Y-%m-%d")
+
+            likes = post.get("likes", 0)
+            comments = post.get("comments", 0)
+            is_spike = likes > spike_threshold and avg_likes > 0
+
+            timeline.append({
+                "date": date_str,
+                "followers": base_followers,
+                "likes": likes,
+                "comments": comments,
+                "shares": int(likes * 0.05) if likes else 0,
+                "organic": not is_spike,
+            })
+
+        # Sort by date ascending
+        timeline.sort(key=lambda x: x["date"])
+        return timeline
+
+    # Fallback: no post data available (private/inactive accounts)
+    # Show a flat line with the profile's current numbers
+    timeline = []
+    base_likes = profile.get("avg_likes", 0)
+    base_comments = profile.get("avg_comments", 0)
+
+    for i in range(min(days, 7)):
+        date = (datetime.now() - timedelta(days=min(days, 7) - i)).strftime("%Y-%m-%d")
         timeline.append({
             "date": date,
-            "followers": followers,
-            "likes": likes,
-            "comments": comments,
-            "shares": shares,
-            "organic": not spike,
+            "followers": base_followers,
+            "likes": base_likes,
+            "comments": base_comments,
+            "shares": int(base_likes * 0.05) if base_likes else 0,
+            "organic": True,
         })
-    
+
     return timeline
+

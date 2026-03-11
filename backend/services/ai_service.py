@@ -10,6 +10,7 @@ Groq AI service — handles all AI/ML tasks using Groq's ultra-fast LLM API:
 """
 import os
 import json
+from datetime import datetime
 from groq import Groq
 from dotenv import load_dotenv
 
@@ -112,6 +113,42 @@ Engagement Timeline: {json.dumps(engagement_data[-30:])}"""
     )
 
     return json.loads(response.choices[0].message.content or "{}")
+
+
+# ======== Niche Detection ========
+
+async def detect_niche(bio: str, name: str, captions: list[str]) -> list[str]:
+    """AI-powered niche detection for highly accurate categorization"""
+    ai = get_groq()
+    
+    text_sample = f"Name: {name}\nBio: {bio}\nRecent Captions: {' | '.join(captions[:5]) if captions else 'None'}"
+
+    try:
+        response = ai.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": """You are an expert social media analyst. Determine the most accurate primary niches/categories for this person.
+CRITICAL INSTRUCTION: If the person is a world-famous celebrity, politician, athlete, or major figure (e.g., Narendra Modi, Cristiano Ronaldo, Elon Musk, MrBeast), rely on your internal Wikipedia-like knowledge to classify them correctly (e.g., "Politics", "Football", "Business", "Entertainment"). Do NOT get distracted by their recent captions (e.g., if a politician congratulates a cricket team, do NOT classify them as "Cricket").
+For normal/everyday creators, use the provided bio and captions to figure out their niche.
+Return ONLY a JSON object containing a "niches" array with 1-3 highly accurate strings. Example: {"niches": ["Politics", "Leadership"]} or {"niches": ["Actor", "Entertainment"]}.
+Return ONLY valid JSON, no extra text."""
+                },
+                {
+                    "role": "user",
+                    "content": text_sample
+                }
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            max_tokens=300
+        )
+        res = json.loads(response.choices[0].message.content or "{}")
+        return res.get("niches", ["General"])[:3]
+    except Exception as e:
+        print(f"Error detecting niche: {e}")
+        return ["General"]
 
 
 # ======== Match Score ========
@@ -348,10 +385,10 @@ Return JSON:
   "estimated_reach": <number>,
   "estimated_impressions": <number>,
   "estimated_engagement": <number>,
-  "cost_per_engagement": <dollar amount>,
-  "cost_per_follower_reached": <dollar amount>,
-  "single_post_value": <dollar amount>,
-  "campaign_value": <dollar amount>,
+  "cost_per_engagement": <rupee amount>,
+  "cost_per_follower_reached": <rupee amount>,
+  "single_post_value": <rupee amount>,
+  "campaign_value": <rupee amount>,
   "confidence": <0-100>,
   "factors": ["<factor1>", ...]
 }
@@ -361,7 +398,7 @@ Return ONLY valid JSON, no extra text."""
             {
                 "role": "user",
                 "content": f"""Influencer data: {json.dumps(influencer)}
-Campaign budget: ${campaign_budget if campaign_budget > 0 else "TBD based on market rates"}"""
+Campaign budget: ₹{campaign_budget if campaign_budget > 0 else "TBD based on market rates"}"""
             }
         ],
         response_format={"type": "json_object"},
@@ -369,6 +406,71 @@ Campaign budget: ${campaign_budget if campaign_budget > 0 else "TBD based on mar
     )
 
     return json.loads(response.choices[0].message.content or "{}")
+
+
+async def predict_live_analytics(influencer: dict) -> dict:
+    """Predict analytics (growth, demographics, campaign performance, weekly) using live data"""
+    ai = get_groq()
+    
+    current_month = datetime.now().strftime("%b")
+    
+    try:
+        response = ai.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"""You are an elite influencer marketing analyst. Predict actual analytics based on the provided influencer's data.
+
+Return JSON EXACTLY matching this structure:
+{{
+  "growth_forecast": [
+    {{"month": "{current_month}", "followers": <int>, "engagement": <float>, "reach": <int>}},
+    ... (total 6 months)
+  ],
+  "audience_demographics": [
+    {{"age": "13-17", "percent": <int>}},
+    {{"age": "18-24", "percent": <int>}},
+    {{"age": "25-34", "percent": <int>}},
+    {{"age": "35-44", "percent": <int>}},
+    {{"age": "45-54", "percent": <int>}},
+    {{"age": "55+", "percent": <int>}}
+  ],
+  "campaign_prediction": {{
+    "estimatedReach": <int>,
+    "estimatedImpressions": <int>,
+    "estimatedClicks": <int>,
+    "estimatedConversions": <int>,
+    "costPerPost": <int (in INR, no Rs sign, just the number)>,
+    "cpe": <float (in INR)>,
+    "roi": <float (e.g. 4.2)>,
+    "engagementValue": <int (in INR)>
+  }},
+  "weekly_performance": [
+    {{"day": "Mon", "predictedLikes": <int>, "predictedComments": <int>, "predictedReach": <int>}},
+    ... (Mon through Sun)
+  ]
+}}
+IMPORTANT: 
+- Base everything realistically on their actual follower count, engagement rate, and niche. 
+- Ensure total audience demographic percentages equal 100.
+- `costPerPost` MUST be realistic for the Indian market in Rupees (INR). e.g., 50k followers ≈ ₹8,000 to ₹15,000; 100k followers ≈ ₹15k to ₹30k; 1M+ followers > ₹1.5L.
+- `engagementValue` MUST be calculated as `costPerPost` multiplied by the `roi`. So if ROI is 3.5 and Cost is ₹10k, Engagement Value MUST be ₹35,000. It must ALWAYS be higher than the cost if ROI is positive.
+- Use only valid JSON.
+"""
+                },
+                {
+                    "role": "user",
+                    "content": f"Predict realistic analytics for this influencer in the current market:\n{json.dumps(influencer, default=str)}"
+                }
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.3,
+        )
+        return json.loads(response.choices[0].message.content or "{}")
+    except Exception as e:
+        print(f"Groq API Error in predict_live_analytics: {e}")
+        return {}
 
 
 # ======== Report Generation ========

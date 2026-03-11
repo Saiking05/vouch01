@@ -1,7 +1,7 @@
 """
 Influencer API routes — fetch, search, analyze real influencers
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from models.schemas import (
     InfluencerProfile, SocialFetchRequest, SearchRequest,
     SentimentAnalysis, RiskAssessment, CompareRequest, CompareResponse
@@ -9,6 +9,7 @@ from models.schemas import (
 from services import supabase_service as db
 from services import ai_service as ai
 from services import social_service as social
+from services.pdf_service import profile_to_pdf
 from datetime import datetime
 
 router = APIRouter(prefix="/api/influencers", tags=["Influencers"])
@@ -30,16 +31,71 @@ async def fetch_influencer(req: SocialFetchRequest):
         # 3. Generate engagement timeline from real data
         timeline = social.generate_engagement_timeline(profile)
         
-        # 4. Run AI analysis in parallel-ish fashion
-        # Match score
-        match_result = await ai.calculate_match_score(profile)
-        profile["match_score"] = match_result.get("match_score", 0)
-        profile["recommendation"] = match_result.get("recommendation", "consider")
+        # 3.5 Detect accurate niche using AI (replaces regex fallback)
+        captions = [p.get("caption", "") for p in profile.get("recent_posts", []) if isinstance(p, dict) and p.get("caption")]
+        ai_niches = await ai.detect_niche(profile.get("bio", ""), profile.get("name", ""), captions)
+        if ai_niches and ai_niches != ["General"]:
+            profile["niche"] = ai_niches
+        
+        # 4. Run AI analysis — match score is now calculated in Campaign Brief
+        #    where brand context is available. No longer done here.
         
         # Risk assessment — uses ONLY real profile metrics + real comments (no synthetic timeline)
         risk_result = await ai.assess_risk(profile, comments)
         profile["risk_level"] = risk_result.get("overall_risk", "medium")
-        profile["bot_percentage"] = risk_result.get("bot_percentage", 0)
+        
+        # Calculate bot percentage from REAL metrics (don't trust AI's lazy 5% default)
+        followers = profile.get("followers", 0)
+        avg_likes = profile.get("avg_likes", 0)
+        avg_comments = profile.get("avg_comments", 0)
+        following = profile.get("following", 0)
+        er = profile.get("engagement_rate", 0)
+        
+        bot_score = 0  # 0-100 scale
+        
+        if followers > 0:
+            like_ratio = avg_likes / followers
+            comment_ratio = avg_comments / followers if followers > 0 else 0
+            follow_ratio = following / followers if followers > 0 else 0
+            comments_to_likes = avg_comments / avg_likes if avg_likes > 0 else 0
+            
+            # 1. Engagement rate suspicion (0-30 pts)
+            # Mega accounts (1M+): expected ER 0.5-3%, Macro (100K-1M): 1-4%, Micro (<100K): 2-8%
+            if followers >= 1000000:
+                if er < 0.3: bot_score += 25  # suspiciously low for that many followers
+                elif er < 0.8: bot_score += 15
+                elif er > 8: bot_score += 20  # suspiciously high
+            elif followers >= 100000:
+                if er < 0.5: bot_score += 20
+                elif er < 1.0: bot_score += 10
+                elif er > 10: bot_score += 20
+            else:
+                if er < 0.5: bot_score += 15
+                elif er > 15: bot_score += 15
+            
+            # 2. Like-to-follower ratio (0-25 pts)
+            if like_ratio < 0.002: bot_score += 25  # less than 0.2% = likely fake followers
+            elif like_ratio < 0.005: bot_score += 15
+            elif like_ratio < 0.01: bot_score += 8
+            elif like_ratio > 0.15: bot_score += 15  # suspiciously high
+            
+            # 3. Comments-to-likes ratio (0-20 pts)
+            if avg_likes > 0:
+                if comments_to_likes < 0.005: bot_score += 18  # almost no comments vs likes
+                elif comments_to_likes < 0.01: bot_score += 10
+                elif comments_to_likes > 0.5: bot_score += 12  # too many comments vs likes (bot comments)
+            
+            # 4. Following-to-followers ratio for large accounts (0-15 pts)
+            if followers >= 100000:
+                if follow_ratio > 0.7: bot_score += 15  # large accounts don't follow back this much
+                elif follow_ratio > 0.4: bot_score += 8
+            
+            # 5. Zero engagement despite followers (0-10 pts)
+            if followers > 10000 and avg_likes == 0: bot_score += 10
+        
+        # Clamp between 2-95 (no account is 0% or 100% bots)
+        bot_score = max(2, min(95, bot_score))
+        profile["bot_percentage"] = bot_score
         
         # Sentiment
         sentiment = {}
@@ -231,6 +287,24 @@ async def get_sentiment(influencer_id: str):
 
 
 
+@router.get("/{influencer_id}/download")
+async def download_influencer_pdf(influencer_id: str):
+    """Download an influencer profile summary as PDF"""
+    profile = await db.get_influencer(influencer_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Influencer not found")
+    
+    pdf_bytes = profile_to_pdf(profile)
+    name = (profile.get("name") or "influencer").replace(" ", "_")[:50]
+    safe_name = "".join(c for c in name if c.isalnum() or c in "._-")[:60] or "profile"
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}_profile.pdf"'},
+    )
+
+
 @router.get("/{influencer_id}/risks")
 async def get_risks(influencer_id: str):
     """Get risk flags"""
@@ -254,6 +328,10 @@ async def reanalyze_influencer(influencer_id: str):
     clean_handle = profile.get("handle", "").replace("@", "").lower().strip()
     comments = await social.fetch_comments(clean_handle, profile.get("platform", "instagram"), profile)
     
+    # AI Niche detection
+    captions = [p.get("caption", "") for p in profile.get("recent_posts", []) if isinstance(p, dict) and p.get("caption")]
+    ai_niches = await ai.detect_niche(profile.get("bio", ""), profile.get("name", ""), captions)
+    
     risk_result = await ai.assess_risk(profile, comments)
     roi_result = await ai.predict_roi(profile)
     
@@ -270,6 +348,8 @@ async def reanalyze_influencer(influencer_id: str):
         "predicted_roi": roi_result.get("predicted_roi", 0),
         "updated_at": datetime.utcnow().isoformat(),
     }
+    if ai_niches and ai_niches != ["General"]:
+        updated["niche"] = ai_niches
     
     await db.upsert_influencer({**profile, **updated})
     
@@ -302,9 +382,9 @@ async def compare_influencers(req: CompareRequest):
         raise HTTPException(status_code=404, detail="One or both influencers not found")
     
     def fmt(n):
-        if n >= 1_000_000: return f"{n/1_000_000:.1f}M"
-        if n >= 1_000: return f"{n/1_000:.1f}K"
-        return str(n)
+        if n >= 10000000: return f"{n/10000000:.2f}Cr"
+        if n >= 100000: return f"{n/100000:.2f}L"
+        return f"{n:,}"
     
     metrics = [
         {"label": "Followers", "value_a": fmt(profile_a.get("followers", 0)), "value_b": fmt(profile_b.get("followers", 0)), "winner": "a" if profile_a.get("followers", 0) > profile_b.get("followers", 0) else "b"},

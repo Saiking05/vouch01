@@ -36,7 +36,7 @@ const features = [
   {
     icon: Gauge,
     title: "Predictive ROI Calculator",
-    description: "Estimate dollar value of posts based on historical engagement quality",
+    description: "Estimate rupee value of posts based on historical engagement quality",
     color: "bg-neo-blue",
   },
   {

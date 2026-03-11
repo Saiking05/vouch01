@@ -1,34 +1,39 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState, Suspense } from "react";
-import { CreditCard, Check, Zap, Star, Building2, Loader } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { Check, Zap, Star, Building2, Loader, X } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const pricingPlans = [
     {
         name: "Free",
-        price: 0,
+        monthlyPrice: 0,
         annualPrice: 0,
         icon: Zap,
-        features: ["3 influencer lookups/month", "Basic engagement metrics", "1 AI brief per month", "Community support"],
+        features: [
+            "Influencer profile lookups",
+            "Engagement metrics & analytics",
+            "AI-powered niche detection",
+            "Basic risk assessment",
+        ],
         color: "bg-[var(--color-neo-white)]",
         cta: "Current Plan",
         priceId: null,
     },
     {
         name: "Pro",
-        price: 10,
-        annualPrice: 8.33,
+        monthlyPrice: 10,
+        annualPrice: 100,
         icon: Star,
         features: [
-            "50 influencer lookups/month",
-            "Deep-dive engagement analysis",
+            "Everything in Free",
+            "Engagement heatmap analysis",
             "Fake engagement detection",
             "Sentiment analysis",
-            "20 AI briefs per month",
+            "AI campaign briefs",
             "PDF report exports",
-            "Priority support",
+            "Content safety audit",
         ],
         color: "bg-[var(--color-neo-pink)]",
         cta: "Upgrade to Pro",
@@ -37,18 +42,17 @@ const pricingPlans = [
     },
     {
         name: "Agency",
-        price: 20,
-        annualPrice: 12.5,
+        monthlyPrice: 20,
+        annualPrice: 200,
         icon: Building2,
         features: [
-            "Unlimited influencer lookups",
-            "Full risk monitoring dashboard",
-            "Real-time trend tracking",
-            "Unlimited AI briefs",
-            "White-label PDF exports",
-            "Team collaboration",
-            "API access",
-            "Dedicated account manager",
+            "Everything in Pro",
+            "Risk monitoring dashboard",
+            "Influencer comparison tool",
+            "AI outreach hooks",
+            "Market rate estimation",
+            "Bulk report downloads",
+            "ROI prediction engine",
         ],
         color: "bg-[var(--color-neo-yellow)]",
         cta: "Upgrade to Agency",
@@ -67,9 +71,21 @@ export default function BillingPage() {
 function BillingContent() {
     const [annual, setAnnual] = useState(false);
     const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [showCanceled, setShowCanceled] = useState(false);
     const searchParams = useSearchParams();
-    const success = searchParams.get("success");
-    const canceled = searchParams.get("canceled");
+    const router = useRouter();
+
+    useEffect(() => {
+        const success = searchParams.get("success");
+        const canceled = searchParams.get("canceled");
+        if (success) setShowSuccess(true);
+        if (canceled) setShowCanceled(true);
+        // Clear URL params so alerts don't persist on refresh
+        if (success || canceled) {
+            router.replace("/dashboard/billing", { scroll: false });
+        }
+    }, [searchParams, router]);
 
     const handleCheckout = async (plan: typeof pricingPlans[0]) => {
         if (!plan.priceId) return;
@@ -92,7 +108,7 @@ function BillingContent() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     priceId: finalPriceId,
-                    userId: "user-id", // will come from auth session
+                    userId: "user-id",
                     userEmail: "user@email.com",
                 }),
             });
@@ -116,45 +132,24 @@ function BillingContent() {
             </motion.div>
 
             {/* Success / Cancel Alerts */}
-            {success && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="neo-card rounded-2xl p-4 bg-[var(--color-neo-green)]">
+            {showSuccess && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="neo-card rounded-2xl p-4 bg-[var(--color-neo-green)] flex items-center justify-between">
                     <p className="font-bold text-[var(--color-neo-black)]">🎉 Payment successful! Your plan has been upgraded.</p>
+                    <button onClick={() => setShowSuccess(false)} className="p-1 hover:bg-black/10 rounded-lg transition-colors">
+                        <X size={16} />
+                    </button>
                 </motion.div>
             )}
-            {canceled && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="neo-card rounded-2xl p-4 bg-[var(--color-neo-yellow)]">
+            {showCanceled && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="neo-card rounded-2xl p-4 bg-[var(--color-neo-yellow)] flex items-center justify-between">
                     <p className="font-bold text-[var(--color-neo-black)]">Payment was canceled. You can try again anytime.</p>
+                    <button onClick={() => setShowCanceled(false)} className="p-1 hover:bg-black/10 rounded-lg transition-colors">
+                        <X size={16} />
+                    </button>
                 </motion.div>
             )}
 
-            {/* Current Plan */}
-            <motion.div
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.1 }}
-                className="neo-card rounded-2xl p-6 bg-[var(--color-neo-yellow)]"
-            >
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="text-[10px] font-bold uppercase text-[var(--color-neo-black)]/40">CURRENT PLAN</p>
-                        <p className="text-2xl font-bold text-[var(--color-neo-black)]">Free Plan</p>
-                        <p className="text-sm text-[var(--color-neo-black)]/60 mt-1">2 of 3 searches used this month</p>
-                    </div>
-                    <CreditCard size={32} className="text-[var(--color-neo-black)]/20" />
-                </div>
-                <div className="mt-4">
-                    <div className="w-full h-3 bg-[var(--color-neo-black)]/10 rounded-full neo-border overflow-hidden">
-                        <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: "66%" }}
-                            transition={{ delay: 0.3, duration: 0.8 }}
-                            className="h-full bg-[var(--color-neo-red)] rounded-full"
-                        />
-                    </div>
-                </div>
-            </motion.div>
-
-            {/* Toggle */}
+            {/* Monthly / Annual Toggle */}
             <div className="flex items-center justify-center gap-3">
                 <span className={`text-sm font-bold ${!annual ? "text-[var(--color-neo-black)]" : "text-[var(--color-neo-black)]/30"}`}>
                     Monthly
@@ -172,15 +167,6 @@ function BillingContent() {
                 <span className={`text-sm font-bold ${annual ? "text-[var(--color-neo-black)]" : "text-[var(--color-neo-black)]/30"}`}>
                     Annual
                 </span>
-                {annual && (
-                    <motion.span
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="neo-badge bg-[var(--color-neo-green)] text-[10px] px-2 py-0.5 rounded-lg font-bold"
-                    >
-                        SAVE UP TO 37%
-                    </motion.span>
-                )}
             </div>
 
             {/* Plans */}
@@ -209,9 +195,9 @@ function BillingContent() {
 
                         <div className="mb-6">
                             <span className="text-4xl font-bold text-[var(--color-neo-black)]">
-                                ${annual ? plan.annualPrice : plan.price}
+                                ${annual ? plan.annualPrice : plan.monthlyPrice}
                             </span>
-                            <span className="text-sm text-[var(--color-neo-black)]/50">/mo</span>
+                            <span className="text-sm text-[var(--color-neo-black)]/50">{annual ? "/yr" : "/mo"}</span>
                         </div>
 
                         <div className="space-y-2 mb-6">

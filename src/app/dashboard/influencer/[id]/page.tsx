@@ -6,11 +6,11 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
     ArrowLeft, CheckCircle, XCircle, Heart, MessageCircle, Users,
-    TrendingUp, DollarSign, MapPin, Shield, RefreshCw, FileText,
+    TrendingUp, IndianRupee, MapPin, Shield, RefreshCw, FileText,
     Download, Loader, Trash2
 } from "lucide-react";
 import {
-    getInfluencer, reanalyzeInfluencer, deleteInfluencer, formatNumber,
+    getInfluencer, reanalyzeInfluencer, deleteInfluencer, formatNumber, downloadInfluencerPdf,
     type InfluencerProfile, type EngagementData, type SentimentData, type RiskFlag
 } from "@/lib/api-client";
 import EngagementHeatmap from "@/components/engagement-heatmap";
@@ -31,6 +31,7 @@ export default function InfluencerDetailPage() {
     const [riskFlags, setRiskFlags] = useState<RiskFlag[]>([]);
     const [loading, setLoading] = useState(true);
     const [reanalyzing, setReanalyzing] = useState(false);
+    const [downloading, setDownloading] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState("");
 
@@ -62,6 +63,16 @@ export default function InfluencerDetailPage() {
             setError(err.message);
         }
         setReanalyzing(false);
+    };
+
+    const handleDownload = async () => {
+        setDownloading(true);
+        try {
+            await downloadInfluencerPdf(id);
+        } catch (err: any) {
+            setError(err.message);
+        }
+        setDownloading(false);
     };
 
     const handleDelete = async () => {
@@ -129,45 +140,75 @@ export default function InfluencerDetailPage() {
                 animate={{ y: 0, opacity: 1 }}
                 className="neo-card rounded-2xl p-6 bg-gradient-to-r from-[var(--color-neo-lavender)] to-[var(--color-neo-cream)] relative overflow-hidden"
             >
-                <div className="flex flex-col md:flex-row md:items-start gap-6">
-                    <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 flex-1">
-                        <AvatarImg src={profile.avatar_url} name={profile.name} size={96} rounded="rounded-2xl" />
-                        <div className="flex-1 min-w-0">
-                            <h1 className="text-2xl font-bold text-[var(--color-neo-black)] flex flex-wrap justify-center sm:justify-start items-center gap-2">
+                <div className="flex flex-col lg:flex-row gap-6 items-center justify-between">
+                    {/* Left: Avatar & Info */}
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 flex-1">
+                        <AvatarImg src={profile.avatar_url} name={profile.name} handle={profile.handle} platform={profile.platform} size={110} rounded="rounded-2xl" />
+                        <div className="flex-1 text-center sm:text-left">
+                            <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-neo-black)] flex flex-wrap items-center justify-center sm:justify-start gap-3">
                                 {profile.name}
                                 {profile.verified && (
-                                    <span className="neo-badge bg-blue-500 text-white px-2 py-0.5 rounded-lg text-[10px]">✓ VERIFIED</span>
+                                    <span className="neo-badge bg-[var(--color-neo-cyan)] text-[var(--color-neo-black)] px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">Verified</span>
                                 )}
                             </h1>
-                            <p className="neo-badge bg-[var(--color-neo-black)] text-[var(--color-neo-white)] px-3 py-1 rounded-lg text-xs inline-block mt-1">
-                                {profile.platform === "instagram" ? "📷" : "📺"}{" "}
-                                {profile.handle}
-                            </p>
-                            <p className="text-sm text-[var(--color-neo-black)]/60 mt-3">{profile.bio}</p>
-                            {profile.location && (
-                                <p className="text-xs text-[var(--color-neo-black)]/40 flex items-center justify-center sm:justify-start gap-1 mt-1">
-                                    <MapPin size={12} /> {profile.location}
-                                </p>
-                            )}
-                            <div className="flex flex-wrap justify-center sm:justify-start gap-1 mt-3">
+                            <div className="flex items-center justify-center sm:justify-start gap-2 mt-2">
+                                <span className="neo-badge bg-[var(--color-neo-black)] text-[var(--color-neo-white)] px-3 py-1 rounded-lg text-xs font-bold">
+                                    {profile.platform === "instagram" ? "📷" : "📺"} {profile.handle}
+                                </span>
+                                {profile.posts === 0 && (
+                                    <span className="neo-badge bg-[var(--color-neo-red)] text-white px-3 py-1 rounded-lg text-[10px] uppercase font-black">No Activity</span>
+                                )}
+                                {profile.posts > 0 && profile.engagement_rate === 0 && (
+                                    <span className="neo-badge bg-[var(--color-neo-black)]/20 text-[var(--color-neo-black)] px-3 py-1 rounded-lg text-[10px] uppercase font-bold">Private</span>
+                                )}
+                            </div>
+                            <p className="text-sm text-[var(--color-neo-black)]/70 mt-4 leading-relaxed max-w-2xl">{profile.bio}</p>
+
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-4">
+                                {profile.location && (
+                                    <span className="text-xs text-[var(--color-neo-black)]/40 flex items-center gap-1 font-bold bg-[var(--color-neo-black)]/5 px-2 py-1 rounded-md">
+                                        <MapPin size={12} /> {profile.location}
+                                    </span>
+                                )}
                                 {profile.niche?.map((n) => (
-                                    <span key={n} className="neo-badge bg-[var(--color-neo-yellow)] px-2 py-0.5 rounded text-[10px] uppercase font-bold">{n}</span>
+                                    <span key={n} className="neo-badge bg-[var(--color-neo-yellow)] px-3 py-1 rounded-lg text-[10px] uppercase font-black border-2 border-[var(--color-neo-black)] shadow-[2px_2px_0px_0px_var(--color-neo-black)]">{n}</span>
                                 ))}
                             </div>
                         </div>
                     </div>
 
-                    {/* AI Decision */}
-                    <div className="flex flex-row md:flex-col items-center justify-center md:items-end gap-3 w-full md:w-auto mt-4 md:mt-0 pt-4 md:pt-0 border-t-2 md:border-t-0 border-[var(--color-neo-black)]/5">
-                        <div className={`neo-card rounded-xl p-4 text-center min-w-[120px] ${isHire ? "bg-[var(--color-neo-green)]" : "bg-[var(--color-neo-red)]"}`}>
-                            <p className="text-[10px] font-bold uppercase text-[var(--color-neo-black)]/50 tracking-widest">VERDICT</p>
-                            <p className="text-3xl font-bold text-[var(--color-neo-black)]">{isHire ? "VOUCH" : "AVOID"}</p>
-                        </div>
-                        <div className={`neo-card rounded-xl px-4 py-3 text-center min-w-[120px] flex md:block flex-col justify-center ${profile.match_score >= 85 ? "bg-[var(--color-neo-green)]" : profile.match_score >= 70 ? "bg-[var(--color-neo-yellow)]" : "bg-[var(--color-neo-red)]"}`}>
-                            <p className="text-xl font-bold leading-none">{profile.match_score}%</p>
-                            <p className="text-[10px] font-bold uppercase mt-1">MATCH</p>
-                        </div>
-                    </div>
+                    {/* Right: Profile Strength */}
+                    {(() => {
+                        let strength = 0;
+                        if (profile.followers >= 1000000) strength += 25;
+                        else if (profile.followers >= 100000) strength += 20;
+                        else if (profile.followers >= 10000) strength += 15;
+                        else if (profile.followers >= 1000) strength += 8;
+                        if (profile.engagement_rate >= 5) strength += 30;
+                        else if (profile.engagement_rate >= 3) strength += 25;
+                        else if (profile.engagement_rate >= 1) strength += 18;
+                        else if (profile.engagement_rate > 0) strength += 10;
+                        if (profile.posts >= 500) strength += 20;
+                        else if (profile.posts >= 100) strength += 15;
+                        else if (profile.posts >= 20) strength += 10;
+                        else if (profile.posts > 0) strength += 5;
+                        const likeRatio = profile.followers > 0 ? profile.avg_likes / profile.followers : 0;
+                        if (likeRatio >= 0.05) strength += 25;
+                        else if (likeRatio >= 0.02) strength += 20;
+                        else if (likeRatio >= 0.005) strength += 15;
+                        else if (likeRatio > 0) strength += 8;
+
+                        const strengthLabel = strength >= 80 ? "EXCELLENT" : strength >= 60 ? "STRONG" : strength >= 40 ? "MODERATE" : strength >= 20 ? "WEAK" : "INACTIVE";
+                        const strengthColor = strength >= 80 ? "bg-[var(--color-neo-green)]" : strength >= 60 ? "bg-[var(--color-neo-green)]" : strength >= 40 ? "bg-[var(--color-neo-yellow)]" : "bg-[var(--color-neo-red)]";
+
+                        return (
+                            <div className={`neo-card rounded-2xl p-5 text-center min-w-[140px] border-2 border-[var(--color-neo-black)] shadow-[4px_4px_0px_0px_var(--color-neo-black)] shrink-0 ${strengthColor}`}>
+                                <p className="text-[10px] sm:text-xs font-black uppercase text-[var(--color-neo-black)]/60 tracking-widest mb-1">PROFILE STRENGTH</p>
+                                <p className="text-2xl md:text-3xl font-black text-[var(--color-neo-black)] leading-none">{strength}%</p>
+                                <p className="text-[10px] sm:text-xs font-bold uppercase mt-1 tracking-widest">{strengthLabel}</p>
+                            </div>
+                        );
+                    })()}
                 </div>
 
                 {/* Stats Row */}
@@ -177,7 +218,7 @@ export default function InfluencerDetailPage() {
                         { label: "Avg Likes", value: profile.avg_likes > 0 ? formatNumber(profile.avg_likes) : "N/A", icon: Heart },
                         { label: "Avg Comments", value: profile.avg_comments > 0 ? formatNumber(profile.avg_comments) : "N/A", icon: MessageCircle },
                         { label: "Eng. Rate", value: profile.engagement_rate > 0 ? `${profile.engagement_rate}%` : "N/A", icon: TrendingUp },
-                        { label: "Predicted ROI", value: profile.predicted_roi > 0 ? `${profile.predicted_roi}x` : "N/A", icon: DollarSign },
+                        { label: "Predicted ROI", value: profile.predicted_roi > 0 ? `${profile.predicted_roi}x` : "N/A", icon: IndianRupee },
                     ].map((stat) => (
                         <div key={stat.label} className="neo-card rounded-xl p-3 text-center bg-[var(--color-neo-white)]/80">
                             <stat.icon size={16} className="mx-auto mb-1 text-[var(--color-neo-black)]/40" />
@@ -204,8 +245,15 @@ export default function InfluencerDetailPage() {
                             <FileText size={14} /> Campaign Brief
                         </motion.button>
                     </Link>
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="neo-btn bg-[var(--color-neo-yellow)] px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2">
-                        <Download size={14} /> Download PDF
+                    <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={handleDownload}
+                        disabled={downloading}
+                        className="neo-btn bg-[var(--color-neo-yellow)] px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2"
+                    >
+                        {downloading ? <Loader size={14} className="animate-spin" /> : <Download size={14} />}
+                        {downloading ? "Downloading..." : "Download PDF"}
                     </motion.button>
                 </div>
             </motion.div>

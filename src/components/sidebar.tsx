@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
     LayoutDashboard,
     Search,
@@ -13,13 +13,12 @@ import {
     Zap,
     TrendingUp,
     Shield,
+    CreditCard,
     Menu,
     X,
-    LogOut,
 } from "lucide-react";
 import VouchLogo from "./vouch-logo";
 import { useState } from "react";
-import { createClient } from "@/lib/supabase-browser";
 
 const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, color: "bg-neo-yellow" },
@@ -35,16 +34,7 @@ const navItems = [
 
 export default function Sidebar() {
     const pathname = usePathname();
-    const router = useRouter();
     const [mobileOpen, setMobileOpen] = useState(false);
-    const [loggingOut, setLoggingOut] = useState(false);
-
-    const handleLogout = async () => {
-        setLoggingOut(true);
-        const supabase = createClient();
-        await supabase.auth.signOut();
-        router.push("/login");
-    };
 
     return (
         <>
@@ -123,18 +113,18 @@ export default function Sidebar() {
                     })}
                 </nav>
 
-                {/* Logout Button */}
+                {/* Billing CTA */}
                 <div className="p-4 border-t-3 border-neo-black">
-                    <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={handleLogout}
-                        disabled={loggingOut}
-                        className="neo-btn w-full bg-neo-red/10 hover:bg-neo-red/20 text-neo-black py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold transition-colors"
-                    >
-                        <LogOut size={16} />
-                        {loggingOut ? "Logging out..." : "Log Out"}
-                    </motion.button>
+                    <Link href="/dashboard/billing" onClick={() => setMobileOpen(false)}>
+                        <motion.div
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            className="neo-btn w-full bg-[var(--color-neo-black)] text-[var(--color-neo-white)] py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-colors"
+                        >
+                            <CreditCard size={16} />
+                            Upgrade Plan
+                        </motion.div>
+                    </Link>
                 </div>
             </aside>
         </>

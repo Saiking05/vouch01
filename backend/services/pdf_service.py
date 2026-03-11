@@ -7,7 +7,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
 
 
 def _clean(text: str) -> str:
@@ -15,6 +15,92 @@ def _clean(text: str) -> str:
         return ""
     s = str(text).replace("**", "").replace("*", "").replace("###", "").replace("##", "").replace("#", "")
     return html.escape(s.strip())
+
+
+def profile_to_pdf(profile: dict) -> bytes:
+    """Generate a PDF summary for an influencer profile."""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=letter,
+        rightMargin=0.75 * inch, leftMargin=0.75 * inch,
+        topMargin=0.75 * inch, bottomMargin=0.75 * inch,
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        name="ReportTitle", parent=styles["Heading1"],
+        fontSize=20, spaceAfter=8, textColor=colors.HexColor("#1e1e1e"),
+    )
+    subtitle_style = ParagraphStyle(
+        name="Subtitle", parent=styles["BodyText"],
+        fontSize=12, spaceAfter=20, textColor=colors.HexColor("#666666"),
+    )
+    heading_style = ParagraphStyle(
+        name="SectionHeading", parent=styles["Heading2"],
+        fontSize=14, spaceBefore=18, spaceAfter=10, textColor=colors.HexColor("#1e1e1e"),
+        borderPadding=(0, 0, 2, 0), borderStyle="solid", borderWidth=0
+    )
+    metric_label_style = ParagraphStyle(
+        name="MetricLabel", parent=styles["Normal"],
+        fontSize=9, textColor=colors.HexColor("#999999"), alignment=1
+    )
+    metric_value_style = ParagraphStyle(
+        name="MetricValue", parent=styles["Normal"],
+        fontSize=14, fontName="Helvetica-Bold", textColor=colors.HexColor("#1e1e1e"), alignment=1
+    )
+
+    story = []
+
+    # Header
+    name = profile.get("name", "Influencer Profile")
+    handle = profile.get("handle", "")
+    platform = profile.get("platform", "Unknown").title()
+    story.append(Paragraph(_clean(name), title_style))
+    story.append(Paragraph(f"{platform} • {handle}", subtitle_style))
+
+    # Stats Table
+    stats_data = [
+        [
+            Paragraph("FOLLOWERS", metric_label_style),
+            Paragraph("ENG. RATE", metric_label_style),
+            Paragraph("AVG LIKES", metric_label_style),
+            Paragraph("AVG COMMENTS", metric_label_style),
+            Paragraph("ROI PREDICTION", metric_label_style)
+        ],
+        [
+            Paragraph(str(profile.get("followers", 0)), metric_value_style),
+            Paragraph(f"{profile.get('engagement_rate', 0)}%", metric_value_style),
+            Paragraph(str(profile.get("avg_likes", 0)), metric_value_style),
+            Paragraph(str(profile.get("avg_comments", 0)), metric_value_style),
+            Paragraph(f"{profile.get('predicted_roi', 0)}x", metric_value_style)
+        ]
+    ]
+    
+    t = Table(stats_data, colWidths=[1.3 * inch] * 5)
+    t.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BACKGROUND', (0,0), (-1, -1), colors.HexColor("#f9f9f9")),
+        ('ROUNDEDCORNERS', [12, 12, 12, 12]),
+        ('TOPPADDING', (0,0), (-1,-1), 10),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 0.3 * inch))
+
+    # About
+    story.append(Paragraph("About", heading_style))
+    story.append(Paragraph(_clean(profile.get("bio", "No bio available.")), styles["Normal"]))
+    
+    # Niche
+    niche = ", ".join(profile.get("niche", ["General"]))
+    story.append(Paragraph(f"<b>Niches:</b> {niche}", styles["Normal"]))
+    
+    # Verified & Risk
+    story.append(Paragraph(f"<b>Verified:</b> {'Yes' if profile.get('verified') else 'No'}", styles["Normal"]))
+    story.append(Paragraph(f"<b>Risk Level:</b> {profile.get('risk_level', 'Unknown').upper()}", styles["Normal"]))
+
+    doc.build(story)
+    return buffer.getvalue()
 
 
 def report_to_pdf(report: dict) -> bytes:

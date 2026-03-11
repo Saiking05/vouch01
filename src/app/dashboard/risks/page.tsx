@@ -254,7 +254,7 @@ export default function RisksPage() {
                             <div className="flex flex-col md:flex-row md:items-start gap-4">
                                 {/* Influencer Info */}
                                 <div className="flex items-center gap-3 w-full md:w-64 shrink-0">
-                                    <AvatarImg src={risk.influencers?.avatar_url ?? ""} name={risk.influencers?.name ?? "Unknown"} size={40} rounded="rounded-xl" />
+                                    <AvatarImg src={risk.influencers?.avatar_url ?? ""} name={risk.influencers?.name ?? "Unknown"} handle={risk.influencers?.handle} platform={risk.influencers?.platform} size={40} rounded="rounded-xl" />
                                     <div className="min-w-0">
                                         <p className="font-bold text-sm truncate">{risk.influencers?.name || "Unknown"}</p>
                                         <div className="flex items-center gap-1.5 mt-0.5">

@@ -51,7 +51,7 @@ export default function SearchPage() {
         try {
             const data = await fetchInfluencer(fetchHandle, fetchPlatform);
             // Add the new profile to results
-            setResults((prev) => [data.profile, ...prev]);
+            setResults((prev) => [data.profile, ...prev.filter(inf => inf.id !== data.profile.id)]);
         } catch (err: any) {
             setError(err.message || "Failed to fetch influencer data");
         }
@@ -74,8 +74,8 @@ export default function SearchPage() {
         <div className="space-y-6">
             {/* Header */}
             <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
-                <h1 className="text-2xl font-bold text-[var(--color-neo-black)]">Search Influencers</h1>
-                <p className="text-sm text-[var(--color-neo-black)]/40 font-semibold">REAL DATA FROM SOCIAL MEDIA</p>
+                <h1 className="text-xl md:text-2xl font-bold text-[var(--color-neo-black)]">Search Influencers</h1>
+                <p className="text-xs md:text-sm text-[var(--color-neo-black)]/40 font-semibold">REAL DATA FROM SOCIAL MEDIA</p>
             </motion.div>
 
             {/* Fetch New Influencer from Social Media */}
@@ -237,7 +237,7 @@ export default function SearchPage() {
                                     <Link href={`/dashboard/influencer/${inf.id}`}>
                                         <div className="neo-card rounded-2xl p-5 bg-[var(--color-neo-white)] cursor-pointer h-full">
                                             <div className="flex items-center gap-3 mb-3">
-                                                <AvatarImg src={inf.avatar_url} name={inf.name} size={48} />
+                                                <AvatarImg src={inf.avatar_url} name={inf.name} handle={inf.handle} platform={inf.platform} size={48} />
                                                 <div className="flex-1 min-w-0">
                                                     <h3 className="font-bold text-sm text-[var(--color-neo-black)] truncate">{inf.name}</h3>
                                                     <p className="text-xs text-[var(--color-neo-black)]/40">{inf.handle}</p>
@@ -251,6 +251,16 @@ export default function SearchPage() {
                                                 <span className="neo-badge bg-[var(--color-neo-black)]/5 px-2 py-0.5 rounded text-[10px] uppercase font-bold">
                                                     {inf.platform}
                                                 </span>
+                                                {inf.posts === 0 && (
+                                                    <span className="neo-badge bg-[var(--color-neo-red)]/10 text-[var(--color-neo-red)] px-2 py-0.5 rounded text-[10px] uppercase font-bold">
+                                                        No Activity
+                                                    </span>
+                                                )}
+                                                {inf.posts > 0 && inf.engagement_rate === 0 && (
+                                                    <span className="neo-badge bg-[var(--color-neo-black)]/10 text-[var(--color-neo-black)]/60 px-2 py-0.5 rounded text-[10px] uppercase font-bold">
+                                                        Private
+                                                    </span>
+                                                )}
                                                 {inf.niche?.slice(0, 2).map((n) => (
                                                     <span key={n} className="neo-badge bg-[var(--color-neo-yellow)]/30 px-2 py-0.5 rounded text-[10px]">
                                                         {n}
@@ -265,11 +275,11 @@ export default function SearchPage() {
                                                 </div>
                                                 <div className="p-2 bg-[var(--color-neo-black)]/3 rounded-lg">
                                                     <p className="text-[10px] text-[var(--color-neo-black)]/40 font-bold">ENG.</p>
-                                                    <p className="text-sm font-bold">{inf.engagement_rate}%</p>
+                                                    <p className="text-sm font-bold">{inf.engagement_rate === 0 ? "N/A" : inf.engagement_rate + "%"}</p>
                                                 </div>
                                                 <div className="p-2 bg-[var(--color-neo-black)]/3 rounded-lg">
                                                     <p className="text-[10px] text-[var(--color-neo-black)]/40 font-bold">ROI</p>
-                                                    <p className="text-sm font-bold">{inf.predicted_roi}x</p>
+                                                    <p className="text-sm font-bold">{inf.engagement_rate === 0 ? "N/A" : inf.predicted_roi + "x"}</p>
                                                 </div>
                                             </div>
 

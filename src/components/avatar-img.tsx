@@ -10,22 +10,31 @@ import { useState } from "react";
 export default function AvatarImg({
     src,
     name,
+    handle,
+    platform,
     size = 48,
     rounded = "rounded-xl",
 }: {
     src: string;
     name: string;
+    handle?: string;
+    platform?: string;
     size?: number;
     rounded?: string;
 }) {
-    const [error, setError] = useState(false);
+    const [imageError, setImageError] = useState(false);
+    const [fallbackError, setFallbackError] = useState(false);
     const px = `${size}px`;
     const textSize = size >= 96 ? "text-3xl" : size >= 64 ? "text-xl" : "text-base";
 
     // Determine the actual image URL to use
     const imgUrl = getProxiedUrl(src);
 
-    if (!src || error) {
+    const cleanHandle = handle?.replace("@", "") || "";
+    const showFallbackUrl = imageError && cleanHandle && platform === "instagram" && !fallbackError;
+    const fallbackUrl = `https://unavatar.io/instagram/${cleanHandle}`;
+
+    if (!src || (imageError && (!showFallbackUrl || fallbackError))) {
         return (
             <div
                 style={{ width: px, height: px }}
@@ -36,6 +45,19 @@ export default function AvatarImg({
         );
     }
 
+    if (showFallbackUrl) {
+        return (
+            <img
+                src={fallbackUrl}
+                alt={name}
+                style={{ width: px, height: px }}
+                className={`${rounded} neo-border object-cover flex-shrink-0`}
+                referrerPolicy="no-referrer"
+                onError={() => setFallbackError(true)}
+            />
+        );
+    }
+
     return (
         <img
             src={imgUrl}
@@ -43,7 +65,7 @@ export default function AvatarImg({
             style={{ width: px, height: px }}
             className={`${rounded} neo-border object-cover flex-shrink-0`}
             referrerPolicy="no-referrer"
-            onError={() => setError(true)}
+            onError={() => setImageError(true)}
         />
     );
 }

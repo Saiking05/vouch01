@@ -17,6 +17,7 @@ export default function BriefPage() {
     const [generating, setGenerating] = useState(false);
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState("");
+    const [matchData, setMatchData] = useState<{ score: number; recommendation: string; reasoning: string } | null>(null);
 
     useEffect(() => {
         loadInfluencers();
@@ -36,6 +37,7 @@ export default function BriefPage() {
         setGenerating(true);
         setError("");
         setBrief("");
+        setMatchData(null);
 
         try {
             const result = await generateBrief({
@@ -46,6 +48,13 @@ export default function BriefPage() {
                 budget: budget ? parseFloat(budget) : undefined,
             });
             setBrief(result.brief);
+            if (result.match_score !== undefined) {
+                setMatchData({
+                    score: result.match_score,
+                    recommendation: result.match_recommendation || "consider",
+                    reasoning: result.match_reasoning || "",
+                });
+            }
         } catch (err: any) {
             setError(err.message || "Failed to generate brief");
         }
@@ -192,6 +201,41 @@ export default function BriefPage() {
                     {error}
                 </motion.div>
             )}
+
+            {/* Match Score Card */}
+            <AnimatePresence>
+                {matchData && (
+                    <motion.div
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className={`neo-card rounded-2xl p-6 ${matchData.score >= 75 ? "bg-[var(--color-neo-green)]" :
+                                matchData.score >= 50 ? "bg-[var(--color-neo-yellow)]" :
+                                    "bg-[var(--color-neo-red)]/20"
+                            }`}
+                    >
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                            <div className="flex items-center gap-4">
+                                <div className="neo-card rounded-2xl p-4 bg-[var(--color-neo-white)] text-center min-w-[100px] border-2 border-[var(--color-neo-black)] shadow-[3px_3px_0px_0px_var(--color-neo-black)]">
+                                    <p className="text-3xl font-black text-[var(--color-neo-black)]">{matchData.score}%</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest">MATCH</p>
+                                </div>
+                                <div className={`neo-badge px-4 py-2 rounded-xl text-sm font-black uppercase ${matchData.recommendation === "hire" ? "bg-[var(--color-neo-green)] border-2 border-[var(--color-neo-black)]" :
+                                        matchData.recommendation === "avoid" ? "bg-[var(--color-neo-red)] text-white border-2 border-[var(--color-neo-black)]" :
+                                            "bg-[var(--color-neo-yellow)] border-2 border-[var(--color-neo-black)]"
+                                    }`}>
+                                    {matchData.recommendation === "hire" ? "✅ VOUCH" :
+                                        matchData.recommendation === "avoid" ? "❌ AVOID" :
+                                            "🤔 CONSIDER"}
+                                </div>
+                            </div>
+                            {matchData.reasoning && (
+                                <p className="text-sm text-[var(--color-neo-black)]/70 flex-1">{matchData.reasoning}</p>
+                            )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Generated Brief */}
             <AnimatePresence>

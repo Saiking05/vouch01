@@ -165,6 +165,21 @@ export async function reanalyzeInfluencer(id: string) {
     return apiFetch(`/api/influencers/${id}/reanalyze`, { method: "POST" });
 }
 
+/** Download influencer profile as PDF */
+export async function downloadInfluencerPdf(id: string) {
+    const res = await fetch(`${BACKEND_URL}/api/influencers/${id}/download`);
+    if (!res.ok) throw new Error("Failed to download PDF");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const disposition = res.headers.get("Content-Disposition");
+    const match = disposition?.match(/filename="?([^";\n]+)"?/);
+    a.download = match ? match[1] : "influencer_profile.pdf";
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
 /** Compare two influencers */
 export async function compareInfluencers(idA: string, idB: string) {
     return apiFetch<{
@@ -192,6 +207,8 @@ export async function generateBrief(params: {
         brief: string;
         influencer_name: string;
         match_score: number;
+        match_recommendation: string;
+        match_reasoning: string;
         generated_at: string;
         report_id?: string;
     }>("/api/ai/brief", {
@@ -212,6 +229,25 @@ export async function predictROI(influencerId: string, budget = 0) {
         campaign_value: number;
         confidence: number;
     }>(`/api/ai/roi/${influencerId}?budget=${budget}`, { method: "POST" });
+}
+
+/** Get live AI-predicted analytics */
+export async function getLiveAnalytics(influencerId: string) {
+    return apiFetch<{
+        growth_forecast: { month: string; followers: number; engagement: number; reach: number }[];
+        audience_demographics: { age: string; percent: number }[];
+        campaign_prediction: {
+            estimatedReach: number;
+            estimatedImpressions: number;
+            estimatedClicks: number;
+            estimatedConversions: number;
+            costPerPost: number;
+            cpe: number;
+            roi: number;
+            engagementValue: number;
+        };
+        weekly_performance: { day: string; predictedLikes: number; predictedComments: number; predictedReach: number }[];
+    }>(`/api/ai/predict-analytics/${influencerId}`, { method: "POST" });
 }
 
 /** Analyze comments sentiment */
@@ -292,9 +328,9 @@ export async function getPlans() {
 // ======== Helper ========
 
 export function formatNumber(n: number): string {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-    return String(n);
+    if (n >= 10000000) return `${(n / 10000000).toFixed(2)}Cr`;
+    if (n >= 100000) return `${(n / 100000).toFixed(2)}L`;
+    return new Intl.NumberFormat('en-IN').format(n);
 }
 
 // ======== Reports ========

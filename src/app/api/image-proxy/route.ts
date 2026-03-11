@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
         });
 
         if (!imageResp.ok) {
-            return new NextResponse("Failed to fetch image", { status: imageResp.status });
+            return new NextResponse(`Failed to fetch image: ${imageResp.statusText}`, { status: imageResp.status });
         }
 
         const contentType = imageResp.headers.get("content-type") || "image/jpeg";

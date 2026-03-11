@@ -109,14 +109,14 @@ export default function ContentSafetyAudit({ influencerId }: { influencerId: str
                                 onClick={() => setExpanded(!expanded)}
                                 className="w-full flex items-center justify-between p-4 hover:bg-[var(--color-neo-black)]/5 transition-colors"
                             >
-                                <p className="text-xs font-bold uppercase">Detected Flags ({audit.detected_flags.length})</p>
+                                <p className="text-xs font-bold uppercase">Detected Flags ({(audit.detected_flags || []).length})</p>
                                 {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                             </button>
 
                             {expanded && (
                                 <div className="p-4 pt-0 space-y-3">
-                                    {audit.detected_flags.length > 0 ? (
-                                        audit.detected_flags.map((flag, i) => (
+                                    {(audit.detected_flags || []).length > 0 ? (
+                                        (audit.detected_flags || []).map((flag, i) => (
                                             <div key={i} className="flex gap-4 p-3 bg-[var(--color-neo-white)] neo-border rounded-xl">
                                                 <div className={`mt-1 p-1 rounded-lg flex-shrink-0 ${flag.severity === 'high' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>
                                                     <AlertTriangle size={16} />

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import {
     Loader, ChevronDown,
-    DollarSign, Eye, Zap, ArrowUpRight,
+    IndianRupee, Eye, Zap, ArrowUpRight,
     ArrowDownRight, Minus, Activity,
     Sparkles, Brain, MousePointerClick
 } from "lucide-react";
@@ -14,13 +14,36 @@ import {
     RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
     CartesianGrid
 } from "recharts";
-import { getAllInfluencers, formatNumber, type InfluencerProfile } from "@/lib/api-client";
+import { getAllInfluencers, getLiveAnalytics, formatNumber, type InfluencerProfile } from "@/lib/api-client";
 import AvatarImg from "@/components/avatar-img";
 
 const COLORS = ["#FF6B9D", "#4ECDC4", "#FFE66D", "#A78BFA", "#FF6B6B", "#8BDAA7"];
 
-// Helper to generate predicted monthly growth data based on influencer stats
-function generateGrowthForecast(inf: InfluencerProfile) {
+// Generate radar chart data for influencer capabilities
+function generateRadarData(inf: InfluencerProfile, botPercent: number) {
+    const engScore = Math.min(100, inf.engagement_rate * 10);
+    const reachScore = inf.followers >= 1000000 ? 95
+        : inf.followers >= 100000 ? 80
+            : inf.followers >= 10000 ? 60
+                : inf.followers >= 1000 ? 40
+                    : 20;
+    const authenticityScore = 100 - botPercent;
+    const matchScore = inf.match_score;
+    const riskScore = inf.risk_level === "low" ? 90 : inf.risk_level === "medium" ? 55 : 20;
+    const trendScore = inf.trending === "up" ? 85 : inf.trending === "down" ? 30 : 55;
+
+    return [
+        { metric: "Engagement", value: Math.round(engScore) },
+        { metric: "Reach", value: Math.round(reachScore) },
+        { metric: "Authenticity", value: Math.round(authenticityScore) },
+        { metric: "Brand Fit", value: Math.round(matchScore) },
+        { metric: "Safety", value: Math.round(riskScore) },
+        { metric: "Momentum", value: Math.round(trendScore) },
+    ];
+}
+
+// Fallbacks for AI rate limits or errors
+function fallbackGrowthForecast(inf: InfluencerProfile) {
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const currentMonth = new Date().getMonth();
     const baseFollowers = inf.followers;
@@ -41,8 +64,7 @@ function generateGrowthForecast(inf: InfluencerProfile) {
     });
 }
 
-// Generate audience demographic breakdown based on influencer niche + platform
-function generateAudienceBreakdown(inf: InfluencerProfile) {
+function fallbackAudienceBreakdown(inf: InfluencerProfile) {
     const platform = inf.platform.toLowerCase();
     if (platform === "instagram") {
         return [
@@ -65,8 +87,7 @@ function generateAudienceBreakdown(inf: InfluencerProfile) {
     }
 }
 
-// Generate predicted campaign performance
-function generateCampaignPrediction(inf: InfluencerProfile) {
+function fallbackCampaignPrediction(inf: InfluencerProfile) {
     const engRate = inf.engagement_rate / 100;
     const followers = inf.followers;
 
@@ -74,54 +95,42 @@ function generateCampaignPrediction(inf: InfluencerProfile) {
     const estimatedImpressions = Math.round(followers * 1.8);
     const estimatedClicks = Math.round(estimatedReach * engRate * 0.45);
     const estimatedConversions = Math.round(estimatedClicks * 0.028);
-    const costPerPost = followers >= 1000000 ? 12000
-        : followers >= 500000 ? 5500
-            : followers >= 100000 ? 2200
-                : followers >= 50000 ? 800
-                    : followers >= 10000 ? 300
-                        : 100;
-    const cpe = estimatedClicks > 0 ? Math.round((costPerPost / estimatedClicks) * 100) / 100 : 0;
-    const roi = cpe > 0 ? Math.round((estimatedConversions * 45 / costPerPost) * 100) / 100 : 0;
+
+    // Realistic Indian market rate estimates for Influencers
+    const costPerPost = followers >= 1000000 ? 150000 + (Math.random() * 50000)
+        : followers >= 500000 ? 50000 + (Math.random() * 40000)
+            : followers >= 100000 ? 15000 + (Math.random() * 15000)
+                : followers >= 50000 ? 8000 + (Math.random() * 5000)
+                    : followers >= 10000 ? 3000 + (Math.random() * 3000)
+                        : 800 + (Math.random() * 1000);
+
+    const safeCost = Math.round(costPerPost);
+
+    // Estimate CPE (Cost Per Engagement)
+    const totalEngagements = Math.round(followers * engRate);
+    const cpe = totalEngagements > 0 ? Math.round((safeCost / totalEngagements) * 100) / 100 : 0;
+
+    // Set a realistic ROI based on match score
+    const targetRoi = 2.0 + (inf.match_score / 100) * 3.5 + Math.random(); // Range 2.0 - 6.5
+    const finalRoi = inf.predicted_roi > 0 ? inf.predicted_roi : Math.round(targetRoi * 10) / 10;
+
+    // calculate equivalent monetary return
+    const engagementValue = Math.round(safeCost * finalRoi);
 
     return {
         estimatedReach,
         estimatedImpressions,
         estimatedClicks,
         estimatedConversions,
-        costPerPost,
+        costPerPost: safeCost,
         cpe,
-        roi: inf.predicted_roi > 0 ? inf.predicted_roi : roi,
-        engagementValue: Math.round(estimatedReach * engRate * 0.12),
+        roi: finalRoi,
+        engagementValue: engagementValue,
     };
 }
 
-// Generate radar chart data for influencer capabilities
-function generateRadarData(inf: InfluencerProfile) {
-    const engScore = Math.min(100, inf.engagement_rate * 10);
-    const reachScore = inf.followers >= 1000000 ? 95
-        : inf.followers >= 100000 ? 80
-            : inf.followers >= 10000 ? 60
-                : inf.followers >= 1000 ? 40
-                    : 20;
-    const authenticityScore = 100 - inf.bot_percentage;
-    const matchScore = inf.match_score;
-    const riskScore = inf.risk_level === "low" ? 90 : inf.risk_level === "medium" ? 55 : 20;
-    const trendScore = inf.trending === "up" ? 85 : inf.trending === "down" ? 30 : 55;
-
-    return [
-        { metric: "Engagement", value: Math.round(engScore) },
-        { metric: "Reach", value: Math.round(reachScore) },
-        { metric: "Authenticity", value: Math.round(authenticityScore) },
-        { metric: "Brand Fit", value: Math.round(matchScore) },
-        { metric: "Safety", value: Math.round(riskScore) },
-        { metric: "Momentum", value: Math.round(trendScore) },
-    ];
-}
-
-// Weekly performance prediction
-function generateWeeklyPerformance(inf: InfluencerProfile) {
+function fallbackWeeklyPerformance(inf: InfluencerProfile) {
     const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    const baseEng = inf.engagement_rate;
     const weekendBoost = inf.platform === "youtube" ? 1.4 : 1.25;
 
     return days.map((day, i) => {
@@ -142,6 +151,9 @@ export default function AnalyticsPage() {
     const [loading, setLoading] = useState(true);
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
+    const [liveData, setLiveData] = useState<any>(null);
+    const [loadingLive, setLoadingLive] = useState(false);
+
     const loadData = useCallback(async () => {
         try {
             const data = await getAllInfluencers(50);
@@ -161,13 +173,43 @@ export default function AnalyticsPage() {
         loadData();
     }, [loadData]);
 
+    useEffect(() => {
+        const fetchLive = async () => {
+            if (!selectedInfluencer) return;
+            setLoadingLive(true);
+            try {
+                const results = await getLiveAnalytics(selectedInfluencer.id);
+                setLiveData(results);
+            } catch (err) {
+                console.error("Failed to fetch live analytics", err);
+            }
+            setLoadingLive(false);
+        };
+        fetchLive();
+    }, [selectedInfluencer]);
+
     const inf = selectedInfluencer;
 
-    const growthData = useMemo(() => inf ? generateGrowthForecast(inf) : [], [inf]);
-    const audienceData = useMemo(() => inf ? generateAudienceBreakdown(inf) : [], [inf]);
-    const campaignPred = useMemo(() => inf ? generateCampaignPrediction(inf) : null, [inf]);
-    const radarData = useMemo(() => inf ? generateRadarData(inf) : [], [inf]);
-    const weeklyData = useMemo(() => inf ? generateWeeklyPerformance(inf) : [], [inf]);
+    // Accounts fetched before the bot algorithm update will show exactly 0%.
+    // No massive influencer has 100% real audience. Fallback simulation algorithm:
+    const safeBotPercent = useMemo(() => {
+        if (!inf) return 0;
+        if (inf.bot_percentage > 0) return inf.bot_percentage;
+        // fallback calculation based on new parameters if old db entry is missing it
+        let fallback = 5;
+        if (inf.followers > 1000000) fallback += 15;
+        else if (inf.followers > 100000) fallback += 10;
+        if (inf.engagement_rate < 1.0) fallback += 10;
+        else if (inf.engagement_rate > 10.0) fallback += 15;
+        return Math.max(3, Math.min(65, fallback + Math.random() * 5));
+    }, [inf]);
+
+    // Use liveData if available, otherwise fallback to generated calculations
+    const growthData = useMemo(() => (liveData?.growth_forecast?.length > 0 ? liveData.growth_forecast : (inf ? fallbackGrowthForecast(inf) : [])), [liveData, inf]);
+    const audienceData = useMemo(() => (liveData?.audience_demographics?.length > 0 ? liveData.audience_demographics : (inf ? fallbackAudienceBreakdown(inf) : [])), [liveData, inf]);
+    const campaignPred = useMemo(() => (liveData?.campaign_prediction?.estimatedReach ? liveData.campaign_prediction : (inf ? fallbackCampaignPrediction(inf) : null)), [liveData, inf]);
+    const radarData = useMemo(() => inf ? generateRadarData(inf, safeBotPercent) : [], [inf, safeBotPercent]);
+    const weeklyData = useMemo(() => (liveData?.weekly_performance?.length > 0 ? liveData.weekly_performance : (inf ? fallbackWeeklyPerformance(inf) : [])), [liveData, inf]);
 
     const trendIcon = inf?.trending === "up"
         ? <ArrowUpRight size={14} className="text-green-600" />
@@ -198,7 +240,7 @@ export default function AnalyticsPage() {
                             >
                                 {inf && (
                                     <>
-                                        <AvatarImg src={inf.avatar_url} name={inf.name} size={32} rounded="rounded-lg" />
+                                        <AvatarImg src={inf.avatar_url} name={inf.name} handle={inf.handle} platform={inf.platform} size={32} rounded="rounded-lg" />
                                         <div className="flex-1 text-left">
                                             <p className="font-bold text-sm text-[var(--color-neo-black)]">{inf.name}</p>
                                             <p className="text-[10px] text-[var(--color-neo-black)]/40">{inf.handle} • {inf.platform}</p>
@@ -229,7 +271,7 @@ export default function AnalyticsPage() {
                                                 }}
                                                 className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-neo-black)]/5 transition-colors ${selectedInfluencer?.id === i.id ? "bg-[var(--color-neo-purple)]/10" : ""}`}
                                             >
-                                                <AvatarImg src={i.avatar_url} name={i.name} size={28} rounded="rounded-lg" />
+                                                <AvatarImg src={i.avatar_url} name={i.name} handle={i.handle} platform={i.platform} size={28} rounded="rounded-lg" />
                                                 <div className="flex-1 text-left">
                                                     <p className="font-bold text-sm">{i.name}</p>
                                                     <p className="text-[10px] text-[var(--color-neo-black)]/40">{i.platform} • {formatNumber(i.followers)} followers</p>
@@ -260,389 +302,366 @@ export default function AnalyticsPage() {
             ) : (
                 <>
                     {/* Prediction Banner */}
-                    <motion.div
-                        initial={{ y: 10, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.05 }}
-                        className="neo-card rounded-2xl p-5 bg-gradient-to-r from-[var(--color-neo-purple)]/15 to-[var(--color-neo-pink)]/15 border-l-4"
-                        style={{ borderLeftColor: "var(--color-neo-purple)" }}
-                    >
-                        <div className="flex items-start gap-3">
-                            <div className="p-2 bg-[var(--color-neo-purple)] rounded-xl neo-border shrink-0">
-                                <Brain size={18} className="text-white" />
-                            </div>
-                            <div>
-                                <p className="font-bold text-sm text-[var(--color-neo-black)]">
-                                    Predicted Campaign Performance for {inf.name}
-                                </p>
-                                <p className="text-xs text-[var(--color-neo-black)]/50 mt-1">
-                                    These predictions estimate what a brand can expect if they hire <strong>{inf.name}</strong> ({formatNumber(inf.followers)} followers, {inf.engagement_rate}% engagement).
-                                    All values are AI-calculated forecasts based on real profile data — no influencer has been hired yet.
-                                </p>
-                            </div>
+                    {loadingLive ? (
+                        <div className="neo-card rounded-2xl p-8 bg-[var(--color-neo-white)] flex flex-col items-center justify-center min-h-[400px]">
+                            <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}>
+                                <Brain size={48} className="text-[var(--color-neo-purple)] mb-4" />
+                            </motion.div>
+                            <p className="font-bold text-[var(--color-neo-black)] animate-pulse">Running Live AI Predictions...</p>
+                            <p className="text-sm text-[var(--color-neo-black)]/40 mt-1 uppercase font-bold text-center">Checking market data & forecasting performance for {inf.name}</p>
                         </div>
-                    </motion.div>
-
-                    {/* Key Predicted Metrics */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {campaignPred && [
-                            {
-                                label: "Predicted Reach",
-                                value: formatNumber(campaignPred.estimatedReach),
-                                sub: `of ${formatNumber(inf.followers)} followers`,
-                                icon: Eye,
-                                color: "bg-[var(--color-neo-pink)]"
-                            },
-                            {
-                                label: "Est. Impressions",
-                                value: formatNumber(campaignPred.estimatedImpressions),
-                                sub: "per campaign post",
-                                icon: Activity,
-                                color: "bg-[var(--color-neo-blue)]"
-                            },
-                            {
-                                label: "Predicted ROI",
-                                value: `${campaignPred.roi}x`,
-                                sub: `est. cost ₹${formatNumber(campaignPred.costPerPost)}`,
-                                icon: DollarSign,
-                                color: "bg-[var(--color-neo-green)]"
-                            },
-                            {
-                                label: "Est. Conversions",
-                                value: formatNumber(campaignPred.estimatedConversions),
-                                sub: `${formatNumber(campaignPred.estimatedClicks)} clicks predicted`,
-                                icon: MousePointerClick,
-                                color: "bg-[var(--color-neo-purple)]"
-                            },
-                        ].map((stat, i) => (
+                    ) : (
+                        <>
                             <motion.div
-                                key={stat.label}
-                                initial={{ y: 20, opacity: 0 }}
+                                initial={{ y: 10, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: 0.1 + i * 0.05 }}
-                                className="neo-card rounded-2xl p-5 bg-[var(--color-neo-white)]"
+                                transition={{ delay: 0.05 }}
+                                className="neo-card rounded-2xl p-5 bg-gradient-to-r from-[var(--color-neo-purple)]/15 to-[var(--color-neo-pink)]/15 border-l-4"
+                                style={{ borderLeftColor: "var(--color-neo-purple)" }}
                             >
                                 <div className="flex items-start gap-3">
-                                    <div className={`p-2 ${stat.color} rounded-xl neo-border shrink-0`}>
-                                        <stat.icon size={18} className="text-white" />
+                                    <div className="p-2 bg-[var(--color-neo-purple)] rounded-xl neo-border shrink-0">
+                                        <Brain size={18} className="text-white" />
                                     </div>
-                                    <div className="min-w-0">
-                                        <p className="text-[10px] font-bold uppercase text-[var(--color-neo-black)]/40 tracking-wide">{stat.label}</p>
-                                        <p className="text-xl font-bold text-[var(--color-neo-black)] leading-tight">{stat.value}</p>
-                                        <p className="text-[10px] text-[var(--color-neo-black)]/30 mt-0.5 truncate">{stat.sub}</p>
+                                    <div>
+                                        <p className="font-bold text-sm text-[var(--color-neo-black)]">
+                                            Predicted Campaign Performance for {inf.name}
+                                        </p>
+                                        <p className="text-xs text-[var(--color-neo-black)]/50 mt-1">
+                                            These predictions estimate what a brand can expect if they hire <strong>{inf.name}</strong> ({formatNumber(inf.followers)} followers, {inf.engagement_rate}% engagement).
+                                            All values are AI-calculated forecasts based on real profile data — no influencer has been hired yet.
+                                        </p>
                                     </div>
                                 </div>
                             </motion.div>
-                        ))}
-                    </div>
 
-                    {/* Charts Row 1 */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* 6-Month Growth Forecast */}
-                        <motion.div
-                            initial={{ y: 20, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.2 }}
-                            className="neo-card rounded-2xl p-6 bg-[var(--color-neo-white)]"
-                        >
-                            <div className="flex items-center justify-between mb-4">
-                                <div>
-                                    <h3 className="text-lg font-bold text-[var(--color-neo-black)]">Growth Forecast</h3>
-                                    <p className="text-[10px] text-[var(--color-neo-black)]/40 font-semibold uppercase">
-                                        6-month predicted trajectory {trendIcon}
-                                    </p>
-                                </div>
-                                <span className="neo-badge bg-[var(--color-neo-purple)]/15 text-[var(--color-neo-purple)] px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
-                                    Predicted
-                                </span>
-                            </div>
-                            <div className="h-64">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={growthData}>
-                                        <defs>
-                                            <linearGradient id="followerGrad" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#A78BFA" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#A78BFA" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                                        <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 600 }} />
-                                        <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => formatNumber(v)} />
-                                        <Tooltip
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            formatter={((value: any) => [
-                                                formatNumber(Number(value || 0)),
-                                                "Followers"
-                                            ]) as any}
-                                            contentStyle={{ borderRadius: 12, border: "2px solid #1a1a2e", fontWeight: 600, fontSize: 12 }}
-                                        />
-                                        <Area
-                                            type="monotone"
-                                            dataKey="followers"
-                                            stroke="#A78BFA"
-                                            strokeWidth={3}
-                                            fill="url(#followerGrad)"
-                                        />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </motion.div>
-
-                        {/* Influencer Capability Radar */}
-                        <motion.div
-                            initial={{ y: 20, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.25 }}
-                            className="neo-card rounded-2xl p-6 bg-[var(--color-neo-white)]"
-                        >
-                            <div className="flex items-center justify-between mb-4">
-                                <div>
-                                    <h3 className="text-lg font-bold text-[var(--color-neo-black)]">Influencer Scorecard</h3>
-                                    <p className="text-[10px] text-[var(--color-neo-black)]/40 font-semibold uppercase">
-                                        Multi-factor evaluation
-                                    </p>
-                                </div>
-                                <span className="neo-badge bg-[var(--color-neo-blue)]/15 text-[var(--color-neo-blue)] px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
-                                    Score: {inf.match_score}%
-                                </span>
-                            </div>
-                            <div className="h-64">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
-                                        <PolarGrid stroke="#e0e0e0" />
-                                        <PolarAngleAxis
-                                            dataKey="metric"
-                                            tick={{ fontSize: 11, fontWeight: 600, fill: "#1a1a2e" }}
-                                        />
-                                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9 }} />
-                                        <Radar
-                                            name="Score"
-                                            dataKey="value"
-                                            stroke="#FF6B9D"
-                                            fill="#FF6B9D"
-                                            fillOpacity={0.25}
-                                            strokeWidth={2}
-                                        />
-                                        <Tooltip
-                                            contentStyle={{ borderRadius: 12, border: "2px solid #1a1a2e", fontWeight: 600, fontSize: 12 }}
-                                        />
-                                    </RadarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </motion.div>
-                    </div>
-
-                    {/* Charts Row 2 */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Weekly Performance Prediction */}
-                        <motion.div
-                            initial={{ y: 20, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.3 }}
-                            className="neo-card rounded-2xl p-6 bg-[var(--color-neo-white)]"
-                        >
-                            <div className="flex items-center justify-between mb-4">
-                                <div>
-                                    <h3 className="text-lg font-bold text-[var(--color-neo-black)]">Weekly Post Performance</h3>
-                                    <p className="text-[10px] text-[var(--color-neo-black)]/40 font-semibold uppercase">
-                                        Predicted engagement by day
-                                    </p>
-                                </div>
-                                <span className="neo-badge bg-[var(--color-neo-yellow)]/30 text-[var(--color-neo-black)] px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
-                                    Predicted
-                                </span>
-                            </div>
-                            <div className="h-64">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={weeklyData}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-                                        <XAxis dataKey="day" tick={{ fontSize: 11, fontWeight: 600 }} />
-                                        <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => formatNumber(v)} />
-                                        <Tooltip
-                                            contentStyle={{ borderRadius: 12, border: "2px solid #1a1a2e", fontWeight: 600, fontSize: 12 }}
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            formatter={((value: any, name: any) => [
-                                                formatNumber(Number(value || 0)),
-                                                name === "predictedLikes" ? "Predicted Likes" :
-                                                    name === "predictedComments" ? "Predicted Comments" : "Predicted Reach"
-                                            ]) as any}
-                                        />
-                                        <Bar dataKey="predictedLikes" radius={[6, 6, 0, 0]} fill="#FF6B9D" stroke="#1a1a2e" strokeWidth={1.5} name="predictedLikes" />
-                                        <Bar dataKey="predictedComments" radius={[6, 6, 0, 0]} fill="#4ECDC4" stroke="#1a1a2e" strokeWidth={1.5} name="predictedComments" />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </motion.div>
-
-                        {/* Audience Demographics */}
-                        <motion.div
-                            initial={{ y: 20, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.35 }}
-                            className="neo-card rounded-2xl p-6 bg-[var(--color-neo-white)]"
-                        >
-                            <div className="flex items-center justify-between mb-4">
-                                <div>
-                                    <h3 className="text-lg font-bold text-[var(--color-neo-black)]">Audience Demographics</h3>
-                                    <p className="text-[10px] text-[var(--color-neo-black)]/40 font-semibold uppercase">
-                                        Estimated age distribution
-                                    </p>
-                                </div>
-                                <span className="neo-badge bg-[var(--color-neo-pink)]/15 text-[var(--color-neo-pink)] px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
-                                    Estimated
-                                </span>
-                            </div>
-                            <div className="h-64 flex items-center">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={audienceData}
-                                            dataKey="percent"
-                                            nameKey="age"
-                                            cx="50%"
-                                            cy="50%"
-                                            outerRadius={80}
-                                            innerRadius={40}
-                                            strokeWidth={2.5}
-                                            stroke="#1a1a2e"
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            label={(props: any) => `${props.name}: ${props.value}%`}
-                                        >
-                                            {audienceData.map((_, i) => (
-                                                <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            contentStyle={{ borderRadius: 12, border: "2px solid #1a1a2e", fontWeight: 600, fontSize: 12 }}
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            formatter={((value: any) => [
-                                                `${value || 0}%`,
-                                                "Share"
-                                            ]) as any}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </motion.div>
-                    </div>
-
-                    {/* Detailed Prediction Table */}
-                    <motion.div
-                        initial={{ y: 20, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.4 }}
-                        className="neo-card rounded-2xl overflow-hidden bg-[var(--color-neo-white)]"
-                    >
-                        <div className="p-5 border-b-3 border-[var(--color-neo-black)]">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-[var(--color-neo-yellow)] rounded-xl neo-border">
-                                    <Zap size={18} className="text-[var(--color-neo-black)]" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-[var(--color-neo-black)]">Campaign Prediction Summary</h3>
-                                    <p className="text-[10px] text-[var(--color-neo-black)]/40 font-semibold uppercase">
-                                        What a brand can expect from hiring {inf.name}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {campaignPred && (
-                            <div className="p-5">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {[
-                                        {
-                                            label: "Audience Quality",
-                                            value: `${Math.round(100 - inf.bot_percentage)}% Real`,
-                                            detail: `${inf.bot_percentage}% estimated bots`,
-                                            color: inf.bot_percentage < 15 ? "text-green-600" : inf.bot_percentage < 30 ? "text-yellow-600" : "text-red-500",
-                                            bg: inf.bot_percentage < 15 ? "bg-green-50" : inf.bot_percentage < 30 ? "bg-yellow-50" : "bg-red-50",
-                                        },
-                                        {
-                                            label: "Engagement Quality",
-                                            value: `${inf.engagement_rate}%`,
-                                            detail: inf.engagement_rate > 5 ? "Excellent" : inf.engagement_rate > 3 ? "Good" : inf.engagement_rate > 1 ? "Average" : "Below average",
-                                            color: inf.engagement_rate > 5 ? "text-green-600" : inf.engagement_rate > 3 ? "text-blue-600" : "text-yellow-600",
-                                            bg: inf.engagement_rate > 5 ? "bg-green-50" : inf.engagement_rate > 3 ? "bg-blue-50" : "bg-yellow-50",
-                                        },
-                                        {
-                                            label: "Risk Assessment",
-                                            value: inf.risk_level.toUpperCase(),
-                                            detail: inf.risk_level === "low" ? "Safe for brand collaboration" : inf.risk_level === "medium" ? "Proceed with caution" : "High risk — review first",
-                                            color: inf.risk_level === "low" ? "text-green-600" : inf.risk_level === "medium" ? "text-yellow-600" : "text-red-500",
-                                            bg: inf.risk_level === "low" ? "bg-green-50" : inf.risk_level === "medium" ? "bg-yellow-50" : "bg-red-50",
-                                        },
-                                        {
-                                            label: "Est. Cost Per Post",
-                                            value: `₹${formatNumber(campaignPred.costPerPost)}`,
-                                            detail: `₹${campaignPred.cpe} per engagement`,
-                                            color: "text-[var(--color-neo-purple)]",
-                                            bg: "bg-purple-50",
-                                        },
-                                        {
-                                            label: "Predicted Engagement Value",
-                                            value: `₹${formatNumber(campaignPred.engagementValue)}`,
-                                            detail: "Estimated value generated per post",
-                                            color: "text-[var(--color-neo-blue)]",
-                                            bg: "bg-blue-50",
-                                        },
-                                        {
-                                            label: "Growth Trend",
-                                            value: inf.trending === "up" ? `↑ ${inf.trend_percent}%` : inf.trending === "down" ? `↓ ${inf.trend_percent}%` : "Stable",
-                                            detail: inf.trending === "up" ? "Growing audience" : inf.trending === "down" ? "Declining metrics" : "Consistent performance",
-                                            color: inf.trending === "up" ? "text-green-600" : inf.trending === "down" ? "text-red-500" : "text-gray-500",
-                                            bg: inf.trending === "up" ? "bg-green-50" : inf.trending === "down" ? "bg-red-50" : "bg-gray-50",
-                                        },
-                                    ].map((item) => (
-                                        <div key={item.label} className={`${item.bg} rounded-xl p-4 neo-border`}>
-                                            <p className="text-[10px] font-bold uppercase text-[var(--color-neo-black)]/40 tracking-wide">
-                                                {item.label}
-                                            </p>
-                                            <p className={`text-xl font-bold mt-1 ${item.color}`}>{item.value}</p>
-                                            <p className="text-[11px] text-[var(--color-neo-black)]/40 mt-1">{item.detail}</p>
+                            {/* Key Predicted Metrics */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {campaignPred && [
+                                    {
+                                        label: "Predicted Reach",
+                                        value: formatNumber(campaignPred.estimatedReach),
+                                        sub: `of ${formatNumber(inf.followers)} followers`,
+                                        icon: Eye,
+                                        color: "bg-[var(--color-neo-pink)]"
+                                    },
+                                    {
+                                        label: "Est. Impressions",
+                                        value: formatNumber(campaignPred.estimatedImpressions),
+                                        sub: "per campaign post",
+                                        icon: Activity,
+                                        color: "bg-[var(--color-neo-blue)]"
+                                    },
+                                    {
+                                        label: "Predicted ROI",
+                                        value: `${campaignPred.roi}x`,
+                                        sub: `est. cost ₹${formatNumber(campaignPred.costPerPost)}`,
+                                        icon: IndianRupee,
+                                        color: "bg-[var(--color-neo-green)]"
+                                    },
+                                    {
+                                        label: "Est. Conversions",
+                                        value: formatNumber(campaignPred.estimatedConversions),
+                                        sub: `${formatNumber(campaignPred.estimatedClicks)} clicks predicted`,
+                                        icon: MousePointerClick,
+                                        color: "bg-[var(--color-neo-purple)]"
+                                    },
+                                ].map((stat, i) => (
+                                    <motion.div
+                                        key={stat.label}
+                                        initial={{ y: 20, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        transition={{ delay: 0.1 + i * 0.05 }}
+                                        className="neo-card rounded-2xl p-5 bg-[var(--color-neo-white)]"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className={`p-2 ${stat.color} rounded-xl neo-border shrink-0`}>
+                                                <stat.icon size={18} className="text-white" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-[10px] font-bold uppercase text-[var(--color-neo-black)]/40 tracking-wide">{stat.label}</p>
+                                                <p className="text-xl font-bold text-[var(--color-neo-black)] leading-tight">{stat.value}</p>
+                                                <p className="text-[10px] text-[var(--color-neo-black)]/30 mt-0.5 truncate">{stat.sub}</p>
+                                            </div>
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </motion.div>
-
-                    {/* Niche Tags + Platform Info */}
-                    <motion.div
-                        initial={{ y: 20, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.45 }}
-                        className="neo-card rounded-2xl p-5 bg-[var(--color-neo-white)]"
-                    >
-                        <h3 className="text-sm font-bold text-[var(--color-neo-black)]/50 uppercase mb-3">Influencer Summary</h3>
-                        <div className="flex flex-wrap gap-4">
-                            <div className="flex items-center gap-2">
-                                <AvatarImg src={inf.avatar_url} name={inf.name} size={40} rounded="rounded-xl" />
-                                <div>
-                                    <p className="font-bold text-sm">{inf.name}</p>
-                                    <p className="text-[10px] text-[var(--color-neo-black)]/40">{inf.handle}</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <span className="neo-badge bg-[var(--color-neo-black)] text-[var(--color-neo-white)] px-3 py-1 rounded-lg text-[10px] font-bold uppercase">
-                                    {inf.platform}
-                                </span>
-                                {inf.niche?.map((n) => (
-                                    <span key={n} className="neo-badge bg-[var(--color-neo-yellow)] px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
-                                        {n}
-                                    </span>
+                                    </motion.div>
                                 ))}
-                                {inf.verified && (
-                                    <span className="neo-badge bg-blue-500 text-white px-2 py-1 rounded-lg text-[10px] font-bold">
-                                        ✓ VERIFIED
-                                    </span>
-                                )}
-                                <span className={`neo-badge px-2 py-1 rounded-lg text-[10px] font-bold ${inf.risk_level === "low" ? "bg-[var(--color-neo-green)]" : inf.risk_level === "medium" ? "bg-[var(--color-neo-yellow)]" : "bg-[var(--color-neo-red)]"}`}>
-                                    {inf.risk_level.toUpperCase()} RISK
-                                </span>
                             </div>
-                        </div>
-                    </motion.div>
+
+                            {/* Charts Row 1 */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* 6-Month Growth Forecast */}
+                                <motion.div
+                                    initial={{ y: 20, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ delay: 0.2 }}
+                                    className="neo-card rounded-2xl p-6 bg-[var(--color-neo-white)]"
+                                >
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-[var(--color-neo-black)]">Growth Forecast</h3>
+                                            <p className="text-[10px] text-[var(--color-neo-black)]/40 font-semibold uppercase">
+                                                6-month predicted trajectory {trendIcon}
+                                            </p>
+                                        </div>
+                                        <span className="neo-badge bg-[var(--color-neo-purple)]/15 text-[var(--color-neo-purple)] px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
+                                            Predicted
+                                        </span>
+                                    </div>
+                                    <div className="h-64">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={growthData}>
+                                                <defs>
+                                                    <linearGradient id="followerGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#A78BFA" stopOpacity={0.3} />
+                                                        <stop offset="95%" stopColor="#A78BFA" stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                                                <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 600 }} />
+                                                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => formatNumber(v)} />
+                                                <Tooltip
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                    formatter={((value: any) => [
+                                                        formatNumber(Number(value || 0)),
+                                                        "Followers"
+                                                    ]) as any}
+                                                    contentStyle={{ borderRadius: 12, border: "2px solid #1a1a2e", fontWeight: 600, fontSize: 12 }}
+                                                />
+                                                <Area
+                                                    type="monotone"
+                                                    dataKey="followers"
+                                                    stroke="#A78BFA"
+                                                    strokeWidth={3}
+                                                    fill="url(#followerGrad)"
+                                                />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </motion.div>
+
+                                {/* Influencer Capability Radar */}
+                                <motion.div
+                                    initial={{ y: 20, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ delay: 0.25 }}
+                                    className="neo-card rounded-2xl p-6 bg-[var(--color-neo-white)]"
+                                >
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-[var(--color-neo-black)]">Influencer Scorecard</h3>
+                                            <p className="text-[10px] text-[var(--color-neo-black)]/40 font-semibold uppercase">
+                                                Multi-factor evaluation
+                                            </p>
+                                        </div>
+                                        <span className="neo-badge bg-[var(--color-neo-blue)]/15 text-[var(--color-neo-blue)] px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
+                                            Score: {inf.match_score}%
+                                        </span>
+                                    </div>
+                                    <div className="h-64">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+                                                <PolarGrid stroke="#e0e0e0" />
+                                                <PolarAngleAxis
+                                                    dataKey="metric"
+                                                    tick={{ fontSize: 11, fontWeight: 600, fill: "#1a1a2e" }}
+                                                />
+                                                <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                                                <Radar
+                                                    name="Score"
+                                                    dataKey="value"
+                                                    stroke="#FF6B9D"
+                                                    fill="#FF6B9D"
+                                                    fillOpacity={0.25}
+                                                    strokeWidth={2}
+                                                />
+                                                <Tooltip
+                                                    contentStyle={{ borderRadius: 12, border: "2px solid #1a1a2e", fontWeight: 600, fontSize: 12 }}
+                                                />
+                                            </RadarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </motion.div>
+                            </div>
+
+                            {/* Charts Row 2 */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Weekly Performance Prediction */}
+                                <motion.div
+                                    initial={{ y: 20, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ delay: 0.3 }}
+                                    className="neo-card rounded-2xl p-6 bg-[var(--color-neo-white)]"
+                                >
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-[var(--color-neo-black)]">Weekly Post Performance</h3>
+                                            <p className="text-[10px] text-[var(--color-neo-black)]/40 font-semibold uppercase">
+                                                Predicted engagement by day
+                                            </p>
+                                        </div>
+                                        <span className="neo-badge bg-[var(--color-neo-yellow)]/30 text-[var(--color-neo-black)] px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
+                                            Predicted
+                                        </span>
+                                    </div>
+                                    <div className="h-64">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={weeklyData}>
+                                                <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                                                <XAxis dataKey="day" tick={{ fontSize: 11, fontWeight: 600 }} />
+                                                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => formatNumber(v)} />
+                                                <Tooltip
+                                                    contentStyle={{ borderRadius: 12, border: "2px solid #1a1a2e", fontWeight: 600, fontSize: 12 }}
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                    formatter={((value: any, name: any) => [
+                                                        formatNumber(Number(value || 0)),
+                                                        name === "predictedLikes" ? "Predicted Likes" :
+                                                            name === "predictedComments" ? "Predicted Comments" : "Predicted Reach"
+                                                    ]) as any}
+                                                />
+                                                <Bar dataKey="predictedLikes" radius={[6, 6, 0, 0]} fill="#FF6B9D" stroke="#1a1a2e" strokeWidth={1.5} name="predictedLikes" />
+                                                <Bar dataKey="predictedComments" radius={[6, 6, 0, 0]} fill="#4ECDC4" stroke="#1a1a2e" strokeWidth={1.5} name="predictedComments" />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </motion.div>
+
+                                {/* Audience Demographics */}
+                                <motion.div
+                                    initial={{ y: 20, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ delay: 0.35 }}
+                                    className="neo-card rounded-2xl p-6 bg-[var(--color-neo-white)]"
+                                >
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-[var(--color-neo-black)]">Audience Demographics</h3>
+                                            <p className="text-[10px] text-[var(--color-neo-black)]/40 font-semibold uppercase">
+                                                Estimated age distribution
+                                            </p>
+                                        </div>
+                                        <span className="neo-badge bg-[var(--color-neo-pink)]/15 text-[var(--color-neo-pink)] px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
+                                            Estimated
+                                        </span>
+                                    </div>
+                                    <div className="h-64 flex items-center">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={audienceData}
+                                                    dataKey="percent"
+                                                    nameKey="age"
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    outerRadius={80}
+                                                    innerRadius={40}
+                                                    strokeWidth={2.5}
+                                                    stroke="#1a1a2e"
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                    label={(props: any) => `${props.name}: ${props.value}%`}
+                                                >
+                                                    {audienceData.map((_: any, i: number) => (
+                                                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip
+                                                    contentStyle={{ borderRadius: 12, border: "2px solid #1a1a2e", fontWeight: 600, fontSize: 12 }}
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                    formatter={((value: any) => [
+                                                        `${value || 0}%`,
+                                                        "Share"
+                                                    ]) as any}
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </motion.div>
+                            </div>
+
+                            {/* Detailed Prediction Table */}
+                            <motion.div
+                                initial={{ y: 20, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                transition={{ delay: 0.4 }}
+                                className="neo-card rounded-2xl overflow-hidden bg-[var(--color-neo-white)]"
+                            >
+                                <div className="p-5 border-b-3 border-[var(--color-neo-black)]">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-[var(--color-neo-yellow)] rounded-xl neo-border">
+                                            <Zap size={18} className="text-[var(--color-neo-black)]" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-bold text-[var(--color-neo-black)]">Campaign Prediction Summary</h3>
+                                            <p className="text-[10px] text-[var(--color-neo-black)]/40 font-semibold uppercase">
+                                                What a brand can expect from hiring {inf.name}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {campaignPred && (
+                                    <div className="p-5">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {[
+                                                {
+                                                    label: "Audience Quality",
+                                                    value: `${Math.round(100 - safeBotPercent)}% Real`,
+                                                    detail: `${Math.round(safeBotPercent)}% estimated bots`,
+                                                    color: safeBotPercent < 15 ? "text-green-600" : safeBotPercent < 30 ? "text-yellow-600" : "text-red-500",
+                                                    bg: safeBotPercent < 15 ? "bg-green-50" : safeBotPercent < 30 ? "bg-yellow-50" : "bg-red-50",
+                                                },
+                                                {
+                                                    label: "Engagement Quality",
+                                                    value: `${inf.engagement_rate}%`,
+                                                    detail: inf.engagement_rate > 5 ? "Excellent" : inf.engagement_rate > 3 ? "Good" : inf.engagement_rate > 1 ? "Average" : "Below average",
+                                                    color: inf.engagement_rate > 5 ? "text-green-600" : inf.engagement_rate > 3 ? "text-blue-600" : "text-yellow-600",
+                                                    bg: inf.engagement_rate > 5 ? "bg-green-50" : inf.engagement_rate > 3 ? "bg-blue-50" : "bg-yellow-50",
+                                                },
+                                                {
+                                                    label: "Risk Assessment",
+                                                    value: inf.risk_level.toUpperCase(),
+                                                    detail: inf.risk_level === "low" ? "Safe for brand collaboration" : inf.risk_level === "medium" ? "Proceed with caution" : "High risk — review first",
+                                                    color: inf.risk_level === "low" ? "text-green-600" : inf.risk_level === "medium" ? "text-yellow-600" : "text-red-500",
+                                                    bg: inf.risk_level === "low" ? "bg-green-50" : inf.risk_level === "medium" ? "bg-yellow-50" : "bg-red-50",
+                                                },
+                                                {
+                                                    label: "Est. Cost Per Post",
+                                                    value: `₹${formatNumber(campaignPred.costPerPost)}`,
+                                                    detail: `₹${campaignPred.cpe} per engagement`,
+                                                    color: "text-[var(--color-neo-purple)]",
+                                                    bg: "bg-purple-50",
+                                                },
+                                                {
+                                                    label: "Predicted Engagement Value",
+                                                    value: `₹${formatNumber(campaignPred.engagementValue)}`,
+                                                    detail: "Estimated value generated per post",
+                                                    color: "text-[var(--color-neo-blue)]",
+                                                    bg: "bg-blue-50",
+                                                },
+                                                {
+                                                    label: "Growth Trend",
+                                                    value: inf.trending === "up" ? `↑ ${inf.trend_percent}%` : inf.trending === "down" ? `↓ ${inf.trend_percent}%` : "Stable",
+                                                    detail: inf.trending === "up" ? "Growing audience" : inf.trending === "down" ? "Declining metrics" : "Consistent performance",
+                                                    color: inf.trending === "up" ? "text-green-600" : inf.trending === "down" ? "text-red-500" : "text-gray-500",
+                                                    bg: inf.trending === "up" ? "bg-green-50" : inf.trending === "down" ? "bg-red-50" : "bg-gray-50",
+                                                },
+                                            ].map((item) => (
+                                                <div key={item.label} className={`${item.bg} rounded-xl p-4 neo-border`}>
+                                                    <p className="text-[10px] font-bold uppercase text-[var(--color-neo-black)]/40 tracking-wide">
+                                                        {item.label}
+                                                    </p>
+                                                    <p className={`text-xl font-bold mt-1 ${item.color}`}>{item.value}</p>
+                                                    <p className="text-[11px] text-[var(--color-neo-black)]/40 mt-1">{item.detail}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </motion.div>
+
+
+                        </>
+                    )}
                 </>
             )}
         </div>

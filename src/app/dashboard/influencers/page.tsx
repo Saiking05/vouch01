@@ -183,7 +183,7 @@ export default function InfluencersPage() {
                                     </button>
 
                                     <div className="flex items-center gap-3 mb-3">
-                                        <AvatarImg src={inf.avatar_url} name={inf.name} size={48} />
+                                        <AvatarImg src={inf.avatar_url} name={inf.name} handle={inf.handle} platform={inf.platform} size={48}  />
                                         <div className="flex-1 min-w-0">
                                             <h3 className="font-bold text-sm text-[var(--color-neo-black)] truncate">{inf.name}</h3>
                                             <p className="text-xs text-[var(--color-neo-black)]/40">{inf.handle} • {inf.platform}</p>
@@ -210,7 +210,7 @@ export default function InfluencersPage() {
                                         </div>
                                         <div className="p-2 bg-[var(--color-neo-black)]/3 rounded-lg">
                                             <p className="text-[10px] text-[var(--color-neo-black)]/40 font-bold">ROI</p>
-                                            <p className="text-sm font-bold">{inf.predicted_roi}x</p>
+                                            <p className="text-sm font-bold">{inf.engagement_rate === 0 ? "N/A" : inf.predicted_roi + "x"}</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center justify-between mt-3 pt-3 border-t-2 border-[var(--color-neo-black)]/5">

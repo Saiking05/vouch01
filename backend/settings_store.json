@@ -1,0 +1,12 @@
+{
+    "a0785d2b-919d-428e-95f2-967aebe1f685": {
+        "full_name": "atharva2",
+        "company": "nike",
+        "role": "marketing director",
+        "notifications": {
+            "email_alerts": true,
+            "report_ready": true,
+            "risk_flags": true
+        }
+    }
+}

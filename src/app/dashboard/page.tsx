@@ -52,14 +52,14 @@ export default function DashboardPage() {
                 initial={{ y: -30, opacity: 0, rotate: -1 }}
                 animate={{ y: 0, opacity: 1, rotate: 0 }}
                 transition={{ type: "spring", bounce: 0.3 }}
-                className="neo-card rounded-2xl p-8 bg-gradient-to-r from-[var(--color-neo-pink)] to-[var(--color-neo-purple)] text-neo-black relative overflow-hidden"
+                className="neo-card rounded-2xl p-6 md:p-8 bg-gradient-to-r from-[var(--color-neo-pink)] to-[var(--color-neo-purple)] text-neo-black relative overflow-hidden"
             >
                 <div className="relative z-10">
                     <div className="flex items-center gap-2 mb-2">
                         <Zap size={24} className="text-[var(--color-neo-yellow)]" />
-                        <h1 className="text-3xl font-black uppercase tracking-tighter">Welcome to Vouch</h1>
+                        <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter">Welcome to Vouch</h1>
                     </div>
-                    <p className="text-neo-black/70 text-sm max-w-lg font-bold uppercase tracking-tight">
+                    <p className="text-neo-black/70 text-xs md:text-sm max-w-lg font-bold uppercase tracking-tight">
                         Validate raw data from Instagram and YouTube — giving you the unfiltered truth on engagement and risk.
                     </p>
                     <div className="flex gap-3 mt-6">
@@ -83,18 +83,6 @@ export default function DashboardPage() {
                         </Link>
                     </div>
                 </div>
-
-                {/* Floating shapes */}
-                <motion.div
-                    animate={{ y: [-5, 5, -5], rotate: [0, 10, 0] }}
-                    transition={{ duration: 4, repeat: Infinity }}
-                    className="absolute right-10 top-4 w-20 h-20 rounded-xl neo-border bg-[var(--color-neo-yellow)]/30 -rotate-12"
-                />
-                <motion.div
-                    animate={{ y: [5, -5, 5], rotate: [0, -10, 0] }}
-                    transition={{ duration: 5, repeat: Infinity }}
-                    className="absolute right-36 bottom-4 w-14 h-14 rounded-full neo-border bg-[var(--color-neo-blue)]/20"
-                />
             </motion.div>
 
             {/* Stats */}
@@ -185,7 +173,7 @@ export default function DashboardPage() {
                                         whileHover={{ x: 4 }}
                                         className="flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--color-neo-black)]/3 cursor-pointer"
                                     >
-                                        <AvatarImg src={inf.avatar_url} name={inf.name} size={32} rounded="rounded-lg" />
+                                        <AvatarImg src={inf.avatar_url} name={inf.name} handle={inf.handle} platform={inf.platform} size={32} rounded="rounded-lg" />
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-bold truncate">{inf.name}</p>
                                             <p className="text-[10px] text-[var(--color-neo-black)]/40">{inf.handle} • {inf.platform}</p>

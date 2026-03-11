@@ -60,7 +60,7 @@ export default function EngagementHeatmap({ data, title = "Engagement Timeline" 
                 <div>
                     <h3 className="text-lg font-bold text-neo-black">{title}</h3>
                     <p className="text-xs text-neo-black/40 font-semibold mt-1">
-                        FAKE ENGAGEMENT DETECTION • 24 MONTHS
+                        FAKE ENGAGEMENT DETECTION • RECENT POSTS
                     </p>
                 </div>
                 {spikePoints.length > 0 && (
