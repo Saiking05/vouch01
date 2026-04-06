@@ -544,12 +544,12 @@ async def estimate_market_rates(influencer: dict) -> dict:
     # We add a 'Scarcity Premium' for celebrities (10M+) and Icons (50M+)
     base_rate = 150.0 if platform == "instagram" else 250.0
     
-    if followers >= 50000000: # Global Icon
-        base_rate = 2000.0 
+    if followers >= 50000000: # Global Icon (Cap the scaling)
+        base_rate = 500.0 # ~₹12Cr - ₹18Cr range with multipliers
     elif followers >= 10000000: # Superstar
-        base_rate = 1500.0
+        base_rate = 400.0 # ~₹4Cr - ₹7Cr range
     elif followers >= 1000000: # Mega-Influencer
-        base_rate = 350.0
+        base_rate = 300.0 # ~₹3L - ₹8L range
     
     # 1. Niche Multiplier (Different industries pay differently)
     niche_multiplier = 1.0

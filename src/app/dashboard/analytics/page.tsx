@@ -100,21 +100,21 @@ function fallbackCampaignPrediction(inf: InfluencerProfile) {
     // Realistic Indian market rate estimates — updated for Mega-Stars/Celebrities
     let costPerPost = 0;
     if (followers >= 50000000) { // Global Icon (50M+)
-        costPerPost = 80000000 + (Math.random() * 40000000); // ₹8Cr - ₹12Cr base
+        costPerPost = 100000000 + (Math.random() * 60000000); // ₹10Cr - ₹16Cr base
     } else if (followers >= 10000000) { // Mega-Star (10M - 50M)
-        costPerPost = 15000000 + (Math.random() * 10000000); // ₹1.5Cr - ₹2.5Cr base
+        costPerPost = 20000000 + (Math.random() * 30000000); // ₹2Cr - ₹5Cr base
     } else if (followers >= 1000000) { // Mega-Influencer (1M - 10M)
-        costPerPost = 300000 + (Math.random() * 400000); // ₹3L - ₹7L
+        costPerPost = 400000 + (Math.random() * 600000); // ₹4L - ₹10L
     } else if (followers >= 500000) {
-        costPerPost = 50000 + (Math.random() * 40000);
+        costPerPost = 80000 + (Math.random() * 70000); // ₹80k - ₹1.5L
     } else if (followers >= 100000) {
-        costPerPost = 15000 + (Math.random() * 15000);
+        costPerPost = 25000 + (Math.random() * 25000); // ₹25k - ₹50k
     } else if (followers >= 50000) {
-        costPerPost = 8000 + (Math.random() * 5000);
+        costPerPost = 10000 + (Math.random() * 10000);
     } else if (followers >= 10000) {
-        costPerPost = 3000 + (Math.random() * 3000);
+        costPerPost = 4000 + (Math.random() * 4000);
     } else {
-        costPerPost = 800 + (Math.random() * 1000);
+        costPerPost = 1000 + (Math.random() * 1500);
     }
 
     const safeCost = Math.round(costPerPost);
