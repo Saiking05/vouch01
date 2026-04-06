@@ -14,10 +14,15 @@ async def create_checkout_session(
     user_id: str,
     user_email: str,
     price_id: str,
-    success_url: str = "http://localhost:3000/dashboard/billing?success=true",
-    cancel_url: str = "http://localhost:3000/dashboard/billing?canceled=true",
+    success_url: str | None = None,
+    cancel_url: str | None = None,
 ) -> dict:
     """Create a Stripe checkout session for subscription"""
+    base_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    if not success_url:
+        success_url = f"{base_url}/dashboard/billing?success=true"
+    if not cancel_url:
+        cancel_url = f"{base_url}/dashboard/billing?canceled=true"
     session = stripe.checkout.Session.create(
         payment_method_types=["card"],
         line_items=[{"price": price_id, "quantity": 1}],

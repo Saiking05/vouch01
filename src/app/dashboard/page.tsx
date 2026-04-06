@@ -27,9 +27,7 @@ export default function DashboardPage() {
                 ? data.results.reduce((a, b) => a + b.engagement_rate, 0) / data.results.length
                 : 0;
             const lowRiskCount = data.results.filter((i) => i.risk_level === "low").length;
-            const avgMatch = data.results.length > 0
-                ? data.results.reduce((a, b) => a + b.match_score, 0) / data.results.length
-                : 0;
+            const avgMatch = 0; // Not displayed
 
             setStats({ total, avgEngagement: Math.round(avgEng * 10) / 10, lowRisk: lowRiskCount, avgMatch: Math.round(avgMatch) });
         } catch {
@@ -42,7 +40,7 @@ export default function DashboardPage() {
         { label: "Audited Influencers", value: stats.total, icon: Users, color: "bg-[var(--color-neo-pink)]" },
         { label: "Avg Engagement", value: `${stats.avgEngagement}%`, icon: TrendingUp, color: "bg-[var(--color-neo-blue)]" },
         { label: "Low Risk", value: stats.lowRisk, icon: Shield, color: "bg-[var(--color-neo-green)]" },
-        { label: "Avg Match Score", value: `${stats.avgMatch}%`, icon: BarChart3, color: "bg-[var(--color-neo-purple)]" },
+        { label: "High Engagement", value: "Active", icon: BarChart3, color: "bg-[var(--color-neo-purple)]" },
     ];
 
     return (
@@ -174,11 +172,11 @@ export default function DashboardPage() {
                                         className="flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--color-neo-black)]/3 cursor-pointer"
                                     >
                                         <AvatarImg src={inf.avatar_url} name={inf.name} handle={inf.handle} platform={inf.platform} size={32} rounded="rounded-lg" />
-                                        <div className="flex-1 min-w-0">
+                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-bold truncate">{inf.name}</p>
                                             <p className="text-[10px] text-[var(--color-neo-black)]/40">{inf.handle} • {inf.platform}</p>
                                         </div>
-                                        <span className="text-sm font-bold text-[var(--color-neo-pink)]">{inf.match_score}%</span>
+                                        <span className="text-[10px] font-bold text-[var(--color-neo-black)]/20 uppercase tracking-widest px-2">Audit Done</span>
                                     </motion.div>
                                 </Link>
                             ))}

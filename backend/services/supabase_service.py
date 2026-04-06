@@ -18,9 +18,11 @@ def get_supabase() -> Client:
 
 # ======== Influencers ========
 
-async def upsert_influencer(data: dict) -> dict:
+async def upsert_influencer(data: dict, user_id: str) -> dict:
     sb = get_supabase()
-    result = sb.table("influencers").upsert(data, on_conflict="handle,platform").execute()
+    # Explicitly set user_id for isolation
+    data["user_id"] = user_id
+    result = sb.table("influencers").upsert(data, on_conflict="handle,platform,user_id").execute()
     return result.data[0] if result.data else {}
 
 
@@ -47,6 +49,7 @@ async def get_influencer_by_handle(handle: str, platform: str) -> dict | None:
 
 
 async def search_influencers(
+    user_id: str,
     query: str = "",
     platform: str | None = None,
     niche: str | None = None,
@@ -56,7 +59,7 @@ async def search_influencers(
     risk_level: str | None = None,
 ) -> list[dict]:
     sb = get_supabase()
-    q = sb.table("influencers").select("*")
+    q = sb.table("influencers").select("*").eq("user_id", user_id)
     
     if query:
         q = q.or_(f"name.ilike.%{query}%,handle.ilike.%{query}%,bio.ilike.%{query}%")
@@ -77,11 +80,12 @@ async def search_influencers(
     return result.data or []
 
 
-async def get_all_influencers(limit: int = 50, offset: int = 0) -> list[dict]:
+async def get_all_influencers(user_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
     sb = get_supabase()
     result = (
         sb.table("influencers")
         .select("*")
+        .eq("user_id", user_id)
         .order("match_score", desc=True)
         .range(offset, offset + limit - 1)
         .execute()
@@ -197,13 +201,16 @@ async def delete_report(report_id: str) -> bool:
         return False
 
 
-async def get_all_risk_flags() -> list[dict]:
-    """Get all risk flags across all influencers with influencer details"""
+async def get_all_risk_flags(user_id: str | None = None) -> list[dict]:
+    """Get all risk flags across all influencers for the current user"""
     sb = get_supabase()
+    q = sb.table("risk_flags").select("id, influencer_id, type, severity, description, source, evidence, detected_at, influencers!inner(id, name, handle, platform, avatar_url, user_id)")
+    
+    if user_id:
+        q = q.eq("influencers.user_id", user_id)
+        
     result = (
-        sb.table("risk_flags")
-        .select("id, influencer_id, type, severity, description, source, evidence, detected_at, influencers(id, name, handle, platform, avatar_url)")
-        .order("detected_at", desc=True)
+        q.order("detected_at", desc=True)
         .limit(100)
         .execute()
     )
@@ -260,11 +267,12 @@ async def increment_search_count(user_id: str) -> dict:
 
 # ======== Activity Feed ========
 
-async def log_activity(action: str, details: str = "", icon: str = "bell") -> None:
+async def log_activity(user_id: str, action: str, details: str = "", icon: str = "bell") -> None:
     """Log an activity / notification. Fire-and-forget — never breaks the caller."""
     try:
         sb = get_supabase()
         sb.table("activity_feed").insert({
+            "user_id": user_id,
             "action": action,
             "details": details,
             "icon": icon,
@@ -273,11 +281,12 @@ async def log_activity(action: str, details: str = "", icon: str = "bell") -> No
         pass  # Never let notification logging break actual operations
 
 
-async def get_activity_feed(limit: int = 20) -> list[dict]:
+async def get_activity_feed(user_id: str, limit: int = 20) -> list[dict]:
     sb = get_supabase()
     result = (
         sb.table("activity_feed")
         .select("id, action, details, icon, created_at")
+        .eq("user_id", user_id)
         .order("created_at", desc=True)
         .limit(limit)
         .execute()

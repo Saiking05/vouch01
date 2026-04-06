@@ -3,12 +3,27 @@
  * All real data flows through these functions
  */
 
+import { createClient } from "./supabase-browser";
+
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+    // Attempt to get user session to pass to backend for isolation
+    let userId = "";
+    try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            userId = user.id;
+        }
+    } catch {
+        // Fallback for non-client contexts if needed
+    }
+
     const res = await fetch(`${BACKEND_URL}${path}`, {
         headers: {
             "Content-Type": "application/json",
+            "X-User-Id": userId,
             ...options.headers,
         },
         ...options,
@@ -167,7 +182,14 @@ export async function reanalyzeInfluencer(id: string) {
 
 /** Download influencer profile as PDF */
 export async function downloadInfluencerPdf(id: string) {
-    const res = await fetch(`${BACKEND_URL}/api/influencers/${id}/download`);
+    // Helper to get user ID for raw fetch
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || "";
+
+    const res = await fetch(`${BACKEND_URL}/api/influencers/${id}/download`, {
+        headers: { "X-User-Id": userId }
+    });
     if (!res.ok) throw new Error("Failed to download PDF");
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -363,7 +385,14 @@ export async function generateReport(influencerId: string, reportType: string = 
 
 /** Download a single report as PDF */
 export async function downloadReportPdf(reportId: string): Promise<void> {
-    const res = await fetch(`${BACKEND_URL}/api/ai/reports/${reportId}/download`);
+    // Helper to get user ID for raw fetch
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || "";
+
+    const res = await fetch(`${BACKEND_URL}/api/ai/reports/${reportId}/download`, {
+        headers: { "X-User-Id": userId }
+    });
     if (!res.ok) throw new Error("Failed to download report");
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -378,9 +407,17 @@ export async function downloadReportPdf(reportId: string): Promise<void> {
 
 /** Download multiple reports as one PDF */
 export async function downloadCombinedReportsPdf(reportIds: string[]): Promise<void> {
+    // Helper to get user ID for raw fetch
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || "";
+
     const res = await fetch(`${BACKEND_URL}/api/ai/reports/download-combined`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+            "Content-Type": "application/json",
+            "X-User-Id": userId 
+        },
         body: JSON.stringify({ report_ids: reportIds }),
     });
     if (!res.ok) throw new Error("Failed to download combined report");

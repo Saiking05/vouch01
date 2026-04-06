@@ -20,8 +20,11 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:8000",
     "https://vouch-xi.vercel.app",
     "https://vouch.vercel.app",
+    "*", # Temporary allow all for local dev stability
 ]
 
 # Add FRONTEND_URL from environment if it's not already in the list

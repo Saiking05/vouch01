@@ -97,12 +97,25 @@ function fallbackCampaignPrediction(inf: InfluencerProfile) {
     const estimatedConversions = Math.round(estimatedClicks * 0.028);
 
     // Realistic Indian market rate estimates for Influencers
-    const costPerPost = followers >= 1000000 ? 150000 + (Math.random() * 50000)
-        : followers >= 500000 ? 50000 + (Math.random() * 40000)
-            : followers >= 100000 ? 15000 + (Math.random() * 15000)
-                : followers >= 50000 ? 8000 + (Math.random() * 5000)
-                    : followers >= 10000 ? 3000 + (Math.random() * 3000)
-                        : 800 + (Math.random() * 1000);
+    // Realistic Indian market rate estimates — updated for Mega-Stars/Celebrities
+    let costPerPost = 0;
+    if (followers >= 50000000) { // Global Icon (50M+)
+        costPerPost = 80000000 + (Math.random() * 40000000); // ₹8Cr - ₹12Cr base
+    } else if (followers >= 10000000) { // Mega-Star (10M - 50M)
+        costPerPost = 15000000 + (Math.random() * 10000000); // ₹1.5Cr - ₹2.5Cr base
+    } else if (followers >= 1000000) { // Mega-Influencer (1M - 10M)
+        costPerPost = 300000 + (Math.random() * 400000); // ₹3L - ₹7L
+    } else if (followers >= 500000) {
+        costPerPost = 50000 + (Math.random() * 40000);
+    } else if (followers >= 100000) {
+        costPerPost = 15000 + (Math.random() * 15000);
+    } else if (followers >= 50000) {
+        costPerPost = 8000 + (Math.random() * 5000);
+    } else if (followers >= 10000) {
+        costPerPost = 3000 + (Math.random() * 3000);
+    } else {
+        costPerPost = 800 + (Math.random() * 1000);
+    }
 
     const safeCost = Math.round(costPerPost);
 
@@ -276,9 +289,6 @@ export default function AnalyticsPage() {
                                                     <p className="font-bold text-sm">{i.name}</p>
                                                     <p className="text-[10px] text-[var(--color-neo-black)]/40">{i.platform} • {formatNumber(i.followers)} followers</p>
                                                 </div>
-                                                <span className={`neo-badge px-2 py-0.5 rounded text-[10px] font-bold ${i.match_score >= 70 ? "bg-[var(--color-neo-green)]" : "bg-[var(--color-neo-yellow)]"}`}>
-                                                    {i.match_score}%
-                                                </span>
                                             </button>
                                         ))}
                                     </motion.div>
@@ -454,9 +464,6 @@ export default function AnalyticsPage() {
                                                 Multi-factor evaluation
                                             </p>
                                         </div>
-                                        <span className="neo-badge bg-[var(--color-neo-blue)]/15 text-[var(--color-neo-blue)] px-2 py-1 rounded-lg text-[10px] font-bold uppercase">
-                                            Score: {inf.match_score}%
-                                        </span>
                                     </div>
                                     <div className="h-64">
                                         <ResponsiveContainer width="100%" height="100%">

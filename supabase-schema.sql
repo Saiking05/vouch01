@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS influencers (
     last_analyzed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(handle, platform)
+    user_id UUID NOT NULL DEFAULT auth.uid(), -- Link to auth.users for private data
+    UNIQUE(handle, platform, user_id) -- users can have same influencer but distinct in their account
 );
 
 -- 2. Engagement Data (Timeline)
@@ -104,7 +105,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 -- 7. Activity Feed   
 CREATE TABLE IF NOT EXISTS activity_feed (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID,
+    user_id UUID NOT NULL DEFAULT auth.uid(),
     action TEXT NOT NULL,
     details TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -141,14 +142,27 @@ ALTER TABLE influencers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 
--- Allow public read for influencers (optional, depending on your app design)
+-- User-specific policies for influencers
 DROP POLICY IF EXISTS "Allow public read for influencers" ON influencers;
-CREATE POLICY "Allow public read for influencers" ON influencers FOR SELECT USING (true);
+CREATE POLICY "Users can only see their own influencers" ON influencers
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own influencers" ON influencers
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own influencers" ON influencers
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own influencers" ON influencers
+    FOR DELETE USING (auth.uid() = user_id);
 
 -- User-specific policies for reports
 DROP POLICY IF EXISTS "Users can only see their own reports" ON reports;
 CREATE POLICY "Users can only see their own reports" ON reports 
     FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own reports" ON reports
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- User-specific policies for user_profiles
 DROP POLICY IF EXISTS "Users can only see their own profile" ON user_profiles;
@@ -158,3 +172,12 @@ CREATE POLICY "Users can only see their own profile" ON user_profiles
 DROP POLICY IF EXISTS "Users can update their own profile" ON user_profiles;
 CREATE POLICY "Users can update their own profile" ON user_profiles
     FOR UPDATE USING (auth.uid() = id);
+
+-- Activity Feed policies
+ALTER TABLE activity_feed ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can only see their own activity" ON activity_feed;
+CREATE POLICY "Users can only see their own activity" ON activity_feed
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own activity" ON activity_feed
+    FOR INSERT WITH CHECK (auth.uid() = user_id);

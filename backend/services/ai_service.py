@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 client: Groq | None = None
-MODEL = "llama-3.3-70b-versatile"
+MODEL = "llama-3.1-8b-instant"
 
 
 def get_groq() -> Groq:
@@ -157,6 +157,9 @@ async def calculate_match_score(influencer: dict, brand_info: dict = {}) -> dict
     """AI-powered brand-influencer match scoring"""
     ai = get_groq()
 
+    # Slim profile to stay under TPM limits
+    slim_profile = {k: v for k, v in influencer.items() if k not in ['recent_posts', 'engagement_timeline']}
+    
     response = ai.chat.completions.create(
         model=MODEL,
         messages=[
@@ -181,7 +184,7 @@ Return ONLY valid JSON, no extra text."""
             {
                 "role": "user",
                 "content": f"""Influencer data:
-{json.dumps(influencer)}
+{json.dumps(slim_profile)}
 
 Brand info: {json.dumps(brand_info) if brand_info else "General brand assessment"}"""
             }
@@ -454,14 +457,14 @@ Return JSON EXACTLY matching this structure:
 IMPORTANT: 
 - Base everything realistically on their actual follower count, engagement rate, and niche. 
 - Ensure total audience demographic percentages equal 100.
-- `costPerPost` MUST be realistic for the Indian market in Rupees (INR). e.g., 50k followers ≈ ₹8,000 to ₹15,000; 100k followers ≈ ₹15k to ₹30k; 1M+ followers > ₹1.5L.
-- `engagementValue` MUST be calculated as `costPerPost` multiplied by the `roi`. So if ROI is 3.5 and Cost is ₹10k, Engagement Value MUST be ₹35,000. It must ALWAYS be higher than the cost if ROI is positive.
+- `costPerPost` MUST be realistic for the Indian market in Rupees (INR). Benchmarks: Micro (10k-100k): ₹3k-₹20k; Mid (100k-1M): ₹20k-₹2L; Mega (1M-10M): ₹2L-₹10L; Superstar (10M-50M): ₹1.5Cr-₹4Cr; Global Icon (50M+): ₹8Cr-₹15Cr.
+- `engagementValue` MUST be calculated as `costPerPost` multiplied by the `roi`. So if ROI is 3.5 and Cost is ₹10Cr, Engagement Value MUST be ₹35Cr. It must ALWAYS be higher than the cost if ROI is positive.
 - Use only valid JSON.
 """
                 },
                 {
                     "role": "user",
-                    "content": f"Predict realistic analytics for this influencer in the current market:\n{json.dumps(influencer, default=str)}"
+                    "content": f"Predict realistic analytics for this influencer in the current market:\n{json.dumps(slim_profile, default=str)}"
                 }
             ],
             response_format={"type": "json_object"},
@@ -486,6 +489,9 @@ async def generate_report(influencer: dict, report_type: str = "full_analysis") 
         "risk_assessment": "Deep-dive risk assessment with mitigation recommendations",
     }
 
+    # Truncate profile data to avoid Groq TPM limits
+    slim_profile = {k: v for k, v in influencer.items() if k not in ['recent_posts', 'engagement_timeline']}
+    
     response = ai.chat.completions.create(
         model=MODEL,
         messages=[
@@ -514,7 +520,7 @@ Return ONLY valid JSON, no extra text."""
             {
                 "role": "user",
                 "content": f"""Generate a {report_type.replace('_', ' ')} report for:
-{json.dumps(influencer)}"""
+{json.dumps(slim_profile)}"""
             }
         ],
         response_format={"type": "json_object"},
@@ -534,10 +540,16 @@ async def estimate_market_rates(influencer: dict) -> dict:
     platform = influencer.get("platform", "instagram")
     niches = influencer.get("niche", [])
     
-    # Base rates per 1K followers (INR) — Realistic Indian market benchmarks
-    # Instagram: ~₹150/1K followers for a standard post (1M followers = ~₹1.5 Lakhs)
-    # YouTube: ~₹250/1K subscribers for a dedicated video (1M subs = ~₹2.5 Lakhs)
+    # Base rates per 1K followers (INR) — Realistic tiered benchmarks
+    # We add a 'Scarcity Premium' for celebrities (10M+) and Icons (50M+)
     base_rate = 150.0 if platform == "instagram" else 250.0
+    
+    if followers >= 50000000: # Global Icon
+        base_rate = 2000.0 
+    elif followers >= 10000000: # Superstar
+        base_rate = 1500.0
+    elif followers >= 1000000: # Mega-Influencer
+        base_rate = 350.0
     
     # 1. Niche Multiplier (Different industries pay differently)
     niche_multiplier = 1.0

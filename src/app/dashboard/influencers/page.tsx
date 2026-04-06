@@ -188,9 +188,6 @@ export default function InfluencersPage() {
                                             <h3 className="font-bold text-sm text-[var(--color-neo-black)] truncate">{inf.name}</h3>
                                             <p className="text-xs text-[var(--color-neo-black)]/40">{inf.handle} • {inf.platform}</p>
                                         </div>
-                                        <span className={`neo-badge ${getMatchColor(inf.match_score)} px-2 py-1 rounded-lg text-xs font-bold`}>
-                                            {inf.match_score}%
-                                        </span>
                                     </div>
                                     <div className="flex gap-1 mb-3">
                                         {inf.niche?.slice(0, 3).map((n) => (

@@ -91,33 +91,39 @@ function BillingContent() {
         if (!plan.priceId) return;
         setLoadingPlan(plan.name);
 
-        let finalPriceId = "";
-        if (plan.priceId === "pro") {
-            finalPriceId = annual
-                ? process.env.NEXT_PUBLIC_STRIPE_PRO_YEARLY_PRICE_ID!
-                : process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID!;
-        } else if (plan.priceId === "agency") {
-            finalPriceId = annual
-                ? process.env.NEXT_PUBLIC_STRIPE_AGENCY_YEARLY_PRICE_ID!
-                : process.env.NEXT_PUBLIC_STRIPE_AGENCY_PRICE_ID!;
-        }
-
         try {
-            const res = await fetch("/api/stripe/checkout", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    priceId: finalPriceId,
-                    userId: "user-id",
-                    userEmail: "user@email.com",
-                }),
-            });
-            const data = await res.json();
-            if (data.url) {
-                window.location.href = data.url;
+            // 1. Get real user session
+            const { createClient } = await import("@/lib/supabase-browser");
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (!user) {
+                router.push("/auth/login");
+                return;
+            }
+
+            // 2. Determine correct Price ID from env vars
+            let finalPriceId = "";
+            if (plan.priceId === "pro") {
+                finalPriceId = annual
+                    ? "price_1T4GJB2L3SLiBT7oRd52HbpZ" // Yearly Pro
+                    : "price_1T4G5W2L3SLiBT7oMG77YjKS"; // Monthly Pro
+            } else if (plan.priceId === "agency") {
+                finalPriceId = annual
+                    ? "price_1T4GJc2L3SLiBT7o4BDtMDoe" // Yearly Agency
+                    : "price_1T4G6e2L3SLiBT7oNPuAOshf"; // Monthly Agency
+            }
+
+            // 3. Call the official createCheckout API
+            const { createCheckout } = await import("@/lib/api-client");
+            const data = await createCheckout(finalPriceId, user.id, user.email || "");
+            
+            if (data.checkout_url) {
+                window.location.href = data.checkout_url;
             }
         } catch (err) {
             console.error("Checkout failed", err);
+            alert("Payment failed to initialize. Please try again.");
         }
         setLoadingPlan(null);
     };
