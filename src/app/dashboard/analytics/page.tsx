@@ -65,26 +65,54 @@ function fallbackGrowthForecast(inf: InfluencerProfile) {
 }
 
 function fallbackAudienceBreakdown(inf: InfluencerProfile) {
-    const platform = inf.platform.toLowerCase();
-    if (platform === "instagram") {
+    const category = inf.category?.toLowerCase() || "general";
+
+    if (category.includes("gaming")) {
         return [
-            { age: "13-17", percent: 8 },
-            { age: "18-24", percent: 35 },
-            { age: "25-34", percent: 32 },
-            { age: "35-44", percent: 15 },
-            { age: "45-54", percent: 7 },
-            { age: "55+", percent: 3 },
-        ];
-    } else {
-        return [
-            { age: "13-17", percent: 18 },
-            { age: "18-24", percent: 28 },
-            { age: "25-34", percent: 25 },
-            { age: "35-44", percent: 16 },
-            { age: "45-54", percent: 9 },
-            { age: "55+", percent: 4 },
+            { age: "13-17", percent: 25 },
+            { age: "18-24", percent: 40 },
+            { age: "25-34", percent: 20 },
+            { age: "35-44", percent: 10 },
+            { age: "45-54", percent: 3 },
+            { age: "55+", percent: 2 },
         ];
     }
+
+    if (category.includes("finance")) {
+        return [
+            { age: "18-24", percent: 10 },
+            { age: "25-34", percent: 30 },
+            { age: "35-44", percent: 30 },
+            { age: "45-54", percent: 20 },
+            { age: "55+", percent: 10 },
+        ];
+    }
+
+    if (category.includes("fitness")) {
+        return [
+            { age: "18-24", percent: 30 },
+            { age: "25-34", percent: 35 },
+            { age: "35-44", percent: 20 },
+            { age: "45-54", percent: 10 },
+            { age: "55+", percent: 5 },
+        ];
+    }
+
+    // default random
+    const base = [
+        { age: "18-24", percent: Math.floor(Math.random() * 30) + 20 },
+        { age: "25-34", percent: Math.floor(Math.random() * 30) + 20 },
+        { age: "35-44", percent: Math.floor(Math.random() * 20) },
+        { age: "45-54", percent: Math.floor(Math.random() * 10) },
+        { age: "55+", percent: Math.floor(Math.random() * 5) },
+    ];
+
+    const total = base.reduce((sum, item) => sum + item.percent, 0);
+
+    return base.map(item => ({
+        ...item,
+        percent: Math.round((item.percent / total) * 100)
+    }));
 }
 
 function fallbackCampaignPrediction(inf: InfluencerProfile) {
